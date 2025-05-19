@@ -2,49 +2,65 @@ using UnityEngine;
 
 public class MateSeekingBehavior : IBehaviorStrategy
 {
+    private IAgent currentTarget;
     private IMovementStrategy movementStrategy;
-    private AgentController currentTarget;
 
     public void Execute(AgentContext context)
     {
         // Check if already mating
         if (context.Reproduction.IsMating)
         {
-            // Stay still during mating
+            Debug.Log("Already mating, staying still");
             StopMoving(context);
             return;
         }
 
-        // Try to find a mate if close enough
-        bool foundMate = context.Reproduction.TryFindMate();
+        // Find a potential mate using the adapter
+        IAgent potentialMate = context.MateFinder.FindNearestPotentialMate();
 
-        // If didn't find a close mate, look for one to move toward
-        if (!foundMate)
+        if (potentialMate != null)
         {
-            // Use sensor to find a potential mate
-            AgentController potentialMate = context.Sensor.GetNearestEntity<AgentController>(
-                filter: agent => {
-                    ReproductionSystem reproduction = agent.GetComponent<ReproductionSystem>();
-                    EnergySystem energy = agent.GetComponent<EnergySystem>();
+            Debug.Log("Found potential mate, checking if close enough to mate");
 
-                    return reproduction != null && reproduction.CanMateAgain &&
-                           energy != null && energy.HasEnoughEnergyForMating;
-                }
-            );
-
-            if (potentialMate != null)
+            // Check if close enough to mate
+            if (context.Reproduction.CanMateWith(potentialMate))
             {
-                // Move towards potential mate
-                currentTarget = potentialMate;
-                movementStrategy = new TargetedMovement(potentialMate.transform);
-                context.Movement.SetMovementStrategy(movementStrategy);
+                Debug.Log("Close enough to mate, initiating mating");
+
+                // Start mating
+                context.Reproduction.InitiateMating(potentialMate);
+
+                // Tell partner to accept mating
+                potentialMate.ReproductionSystem.AcceptMating(context.Agent);
+
+                // Stay still during mating
+                StopMoving(context);
+                Debug.Log("Mating initiated, staying still");
             }
             else
             {
-                // No potential mates, revert to wandering
-                movementStrategy = MovementStrategyFactory.CreateRandomMovement();
-                context.Movement.SetMovementStrategy(movementStrategy);
+                // Not close enough, move toward mate
+                if (potentialMate is AgentAdapter adapter)
+                {
+                    Debug.Log("Moving toward potential mate");
+
+                    // Set as current target
+                    currentTarget = potentialMate;
+
+                    // Create targeted movement
+                    movementStrategy = new TargetedMovement(adapter.GameObject.transform);
+                    context.Movement.SetMovementStrategy(movementStrategy);
+                }
             }
+        }
+        else
+        {
+            Debug.Log("No potential mates found, wandering");
+
+            // No potential mates, just wander
+            currentTarget = null;
+            movementStrategy = MovementStrategyFactory.CreateRandomMovement();
+            context.Movement.SetMovementStrategy(movementStrategy);
         }
     }
 
@@ -53,75 +69,5 @@ public class MateSeekingBehavior : IBehaviorStrategy
         // Create a stationary strategy
         movementStrategy = new StationaryMovement();
         context.Movement.SetMovementStrategy(movementStrategy);
-    }
-
-    public bool ShouldTransition(AgentContext context, out IBehaviorStrategy nextStrategy)
-    {
-        nextStrategy = null;
-
-        // If mating completed, return to wandering
-        if (!context.Reproduction.IsMating && context.Reproduction.LastMatingTime > 0)
-        {
-            nextStrategy = new WanderingBehavior();
-            return true;
-        }
-
-        // If no longer has energy to mate, check if hungry
-        if (!context.Energy.HasEnoughEnergyForMating || !context.Reproduction.CanMateAgain)
-        {
-            if (context.Energy.IsHungry)
-            {
-                // Check if food is nearby
-                GameObject food = context.Sensor.GetNearestFood();
-                if (food != null)
-                {
-                    nextStrategy = new ForagingBehavior();
-                }
-                else
-                {
-                    // No food nearby, just wander
-                    nextStrategy = new WanderingBehavior();
-                }
-                return true;
-            }
-            else
-            {
-                // Not hungry, return to wandering
-                nextStrategy = new WanderingBehavior();
-                return true;
-            }
-        }
-
-        // If no potential mates nearby, check if hungry
-        AgentController potentialMate = context.Sensor.GetNearestEntity<AgentController>(
-            filter: agent => {
-                ReproductionSystem reproduction = agent.GetComponent<ReproductionSystem>();
-                EnergySystem energy = agent.GetComponent<EnergySystem>();
-
-                return reproduction != null && reproduction.CanMateAgain &&
-                       energy != null && energy.HasEnoughEnergyForMating;
-            }
-        );
-
-        if (potentialMate == null)
-        {
-            if (context.Energy.IsHungry)
-            {
-                // Check if food is nearby
-                GameObject food = context.Sensor.GetNearestFood();
-                if (food != null)
-                {
-                    nextStrategy = new ForagingBehavior();
-                    return true;
-                }
-            }
-
-            // No mates and not hungry (or no food), return to wandering
-            nextStrategy = new WanderingBehavior();
-            return true;
-        }
-
-        // No transition needed - continue seeking mate
-        return false;
     }
 }

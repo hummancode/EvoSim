@@ -6,7 +6,7 @@ public class GameSpeedController : MonoBehaviour
 {
     [Header("Speed Settings")]
     [SerializeField] private float minSpeed = 0.1f;
-    [SerializeField] private float maxSpeed = 50.0f;
+    [SerializeField] private float maxSpeed = 250.0f;
     [SerializeField] private float defaultSpeed = 1.0f;
     [SerializeField] private bool useLogarithmicScale = true;
 

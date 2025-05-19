@@ -26,26 +26,14 @@ public static class MovementStrategyFactory
         );
     }
 
-    // Advanced factory method that creates different behaviors based on context
-    //public static IMovementStrategy CreateBehaviorStrategy(
-    //    SensorSystem sensor,
-    //    AgentContext context) // AgentContext could include energy, age, etc.
-    //{
-    //    // You could create different behaviors based on agent state
-    //    if (context.IsHungry)
-    //    {
-    //        return CreateFoodSeeking(sensor);
-    //    }
-    //    else if (context.IsMature && context.HasHighEnergy)
-    //    {
-    //        // Future: Mate seeking strategy
-    //        return CreateMateSeeking(sensor);
-    //    }
-    //    else
-    //    {
-    //        return CreateRandomMovement();
-    //    }
-    //}
-}
+    // Create mate seeking strategy
+    public static IMovementStrategy CreateMateSeekingMovement(SensorSystem sensor)
+    {
+        // This would require implementing a MateSensorAdapter similar to FoodSensorAdapter
+        IMovementStrategy fallback = CreateRandomMovement();
 
-// Optional: Context object for more complex factory decisions
+        // For now, we'll just create a direct targeted movement in MateSeekingBehavior
+        // but this factory could be expanded with a proper adapter
+        return fallback;
+    }
+}

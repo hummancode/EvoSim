@@ -1,35 +1,31 @@
 using UnityEngine;
 
 public class AgentController : MonoBehaviour
-{ // Current behavior
-    [Header("behavior")]
-    [SerializeField] private IBehaviorStrategy currentBehavior;
+{
+    [Header("Components")]
+    private MovementSystem movementSystem;
+    private SensorSystem sensorSystem;
+    private EnergySystem energySystem;
+    private ConsumptionSystem consumptionSystem;
+    private DeathSystem deathSystem;
+    private ReproductionSystem reproductionSystem;
 
-    // Core components
-    public MovementSystem MovementSystem { get; private set; }
-    public SensorSystem SensorSystem { get; private set; }
-    public EnergySystem EnergySystem { get; private set; }
-    public ConsumptionSystem ConsumptionSystem { get; private set; }
-    public DeathSystem DeathSystem { get; private set; }
-    public ReproductionSystem ReproductionSystem { get; private set; }
+    // Agent Context (for behavior strategies)
+    private AgentContext context;
 
-   
-  
+    // Current behavior
+    private IBehaviorStrategy currentBehavior;
+    [SerializeField] private string currentBehaviorName;
     // Behavior update interval
-    private float behaviorUpdateInterval = 0.2f;
+    [SerializeField] private float behaviorUpdateInterval = 0.2f;
     private float lastBehaviorUpdate;
-
-    // Context for strategies
-    private AgentContext context = new AgentContext();
 
     // Generation tracking
     public int Generation { get; set; } = 1;
 
-    // Properties for external access
-    public AgentContext GetContext()
-    {
-        return context;
-    }
+    // Event delegates
+    public delegate void AgentEventHandler(GameObject agent);
+    public event AgentEventHandler OnAgentDeath;
 
     void Awake()
     {
@@ -39,7 +35,8 @@ public class AgentController : MonoBehaviour
         // Initialize components
         InitializeComponents();
 
-        // Initialize context
+        // Create and update context
+        context = new AgentContext();
         UpdateContext();
 
         // Subscribe to events
@@ -58,53 +55,76 @@ public class AgentController : MonoBehaviour
     private void InitializeComponents()
     {
         // Get or add each component
-        MovementSystem = GetOrAddComponent<MovementSystem>();
-        SensorSystem = GetOrAddComponent<SensorSystem>();
-        EnergySystem = GetOrAddComponent<EnergySystem>();
-        ConsumptionSystem = GetOrAddComponent<ConsumptionSystem>();
-        DeathSystem = GetOrAddComponent<DeathSystem>();
-        ReproductionSystem = GetOrAddComponent<ReproductionSystem>();
-    }
+        movementSystem = GetOrAddComponent<MovementSystem>();
+        sensorSystem = GetOrAddComponent<SensorSystem>();
+        energySystem = GetOrAddComponent<EnergySystem>();
+        consumptionSystem = GetOrAddComponent<ConsumptionSystem>();
+        deathSystem = GetOrAddComponent<DeathSystem>();
+        reproductionSystem = GetOrAddComponent<ReproductionSystem>();
 
+        // Create and initialize context
+        context = new AgentContext();
+
+        // Create agent adapter for self-reference
+        IAgent selfAgent = new AgentAdapter(this);
+
+        // Create the mate finder adapter - MAKE SURE THIS HAPPENS BEFORE Initialize
+        IMateFinder mateFinder = new SensorMateFinder(sensorSystem, gameObject);
+
+        // Update the context with all necessary references
+        context.Agent = selfAgent;
+        context.Movement = movementSystem;
+        context.Sensor = sensorSystem;
+        context.MateFinder = mateFinder;  // Set the MateFinder here
+        context.Energy = energySystem;
+        context.Reproduction = reproductionSystem;
+
+        // Initialize reproduction system with dependencies
+        reproductionSystem.Initialize(selfAgent, mateFinder, energySystem);
+
+        Debug.Log("Context initialized - MateFinder: " + (context.MateFinder != null ? "Valid" : "NULL"));
+    }
     private void SubscribeToEvents()
     {
-        if (DeathSystem != null)
+        if (reproductionSystem != null)
         {
-            DeathSystem.OnDeath += HandleDeath;
+            // Make sure we're not double-subscribing
+            reproductionSystem.OnMatingStarted -= HandleMatingStarted;
+            reproductionSystem.OnMatingCompleted -= HandleMatingCompleted;
+            reproductionSystem.OnOffspringRequested -= HandleOffspringRequested;
+
+            // Subscribe to events
+            reproductionSystem.OnMatingStarted += HandleMatingStarted;
+            reproductionSystem.OnMatingCompleted += HandleMatingCompleted;
+            reproductionSystem.OnOffspringRequested += HandleOffspringRequested;
+
+            Debug.Log("Successfully subscribed to reproduction events");
+        }
+        else
+        {
+            Debug.LogError("reproductionSystem is null in SubscribeToEvents");
         }
 
-        if (ReproductionSystem != null)
-        {
-            ReproductionSystem.OnMatingStarted += HandleMatingStarted;
-            ReproductionSystem.OnMatingCompleted += HandleMatingCompleted;
-            ReproductionSystem.OnOffspringRequested += HandleOffspringRequested;
-        }
-
-        if (EnergySystem != null)
-        {
-            // Subscribe to energy-related events if needed
-            // Example: EnergySystem.OnHungerStateChanged += HandleHungerStateChanged;
-        }
+        // Other subscriptions...
     }
 
     private void UnsubscribeFromEvents()
     {
-        if (DeathSystem != null)
+        if (deathSystem != null)
         {
-            DeathSystem.OnDeath -= HandleDeath;
+            deathSystem.OnDeath -= HandleDeath;
         }
 
-        if (ReproductionSystem != null)
+        if (reproductionSystem != null)
         {
-            ReproductionSystem.OnMatingStarted -= HandleMatingStarted;
-            ReproductionSystem.OnMatingCompleted -= HandleMatingCompleted;
-            ReproductionSystem.OnOffspringRequested -= HandleOffspringRequested;
+            reproductionSystem.OnMatingStarted -= HandleMatingStarted;
+            reproductionSystem.OnMatingCompleted -= HandleMatingCompleted;
+            reproductionSystem.OnOffspringRequested -= HandleOffspringRequested;
         }
 
-        if (EnergySystem != null)
+        if (energySystem != null)
         {
             // Unsubscribe from energy-related events
-            // Example: EnergySystem.OnHungerStateChanged -= HandleHungerStateChanged;
         }
     }
 
@@ -120,13 +140,35 @@ public class AgentController : MonoBehaviour
 
     private void UpdateContext()
     {
-        // Update the context with all necessary references
-        context.Agent = gameObject;
-        context.Movement = MovementSystem;
-        context.Sensor = SensorSystem;
-        context.Energy = EnergySystem;
-        context.Reproduction = ReproductionSystem;
-        // Add any other context references here
+        if (context == null)
+        {
+            Debug.LogError("Context is null in UpdateContext - creating new context");
+            context = new AgentContext();
+        }
+
+        // Create components if they haven't been created yet
+        if (context.MateFinder == null && sensorSystem != null)
+        {
+            Debug.Log("Creating new MateFinder in UpdateContext");
+            context.MateFinder = new SensorMateFinder(sensorSystem, gameObject);
+        }
+
+        // Create agent adapter for self-reference
+        IAgent selfAgent = new AgentAdapter(this);
+
+        // Update the context
+        context.Agent = selfAgent;
+        context.Movement = movementSystem;
+        context.Sensor = sensorSystem;
+        context.Energy = energySystem;
+        context.Reproduction = reproductionSystem;
+
+        // Verify MateFinder is still valid
+        if (context.MateFinder == null)
+        {
+            Debug.LogWarning("MateFinder is still null after UpdateContext - creating new one");
+            context.MateFinder = new SensorMateFinder(sensorSystem, gameObject);
+        }
     }
 
     void Update()
@@ -142,14 +184,60 @@ public class AgentController : MonoBehaviour
         // Execute current behavior
         currentBehavior?.Execute(context);
 
-        // Check for behavior transitions
-        if (currentBehavior != null &&
-            currentBehavior.ShouldTransition(context, out IBehaviorStrategy nextBehavior))
-        {
-            SetBehavior(nextBehavior);
-        }
+        // Determine if behavior should change
+        DetermineBehavior();
 
         lastBehaviorUpdate = Time.time;
+    }
+
+    private void DetermineBehavior()
+    {
+        // If currently mating, stay in mating behavior
+        if (reproductionSystem.IsMating)
+        {
+            if (!(currentBehavior is MatingBehavior))
+                SetBehavior(new MatingBehavior());
+            return;
+        }
+
+        // If hungry and food is nearby, switch to foraging
+        if (energySystem.IsHungry)
+        {
+            IEdible nearestFood = sensorSystem.GetNearestEdible();
+            if (nearestFood != null)
+            {
+                if (!(currentBehavior is ForagingBehavior))
+                    SetBehavior(new ForagingBehavior());
+                return;
+            }
+        }
+
+        // If ready to mate and potential mates exist, seek mates
+        if (energySystem.HasEnoughEnergyForMating && reproductionSystem.CanMate)
+        {
+            AgentController potentialMate = sensorSystem.GetNearestEntity<AgentController>(
+                filter: agent => {
+                    if (agent.gameObject == gameObject) return false; // Skip self
+
+                    ReproductionSystem repro = agent.GetComponent<ReproductionSystem>();
+                    EnergySystem energy = agent.GetComponent<EnergySystem>();
+
+                    return repro != null && repro.CanMate &&
+                           energy != null && energy.HasEnoughEnergyForMating;
+                }
+            );
+
+            if (potentialMate != null)
+            {
+                if (!(currentBehavior is MateSeekingBehavior))
+                    SetBehavior(new MateSeekingBehavior());
+                return;
+            }
+        }
+
+        // Default to wandering
+        if (!(currentBehavior is WanderingBehavior))
+            SetBehavior(new WanderingBehavior());
     }
 
     private void SetBehavior(IBehaviorStrategy behavior)
@@ -159,16 +247,34 @@ public class AgentController : MonoBehaviour
             return;
 
         currentBehavior = behavior;
-        Debug.Log($"Agent {gameObject.name} (Gen {Generation}) switched to {behavior.GetType().Name}");
+
+        // Update the display name
+        currentBehaviorName = behavior != null ? behavior.GetType().Name : "None";
+
+        Debug.Log($"Agent {gameObject.name} (Gen {Generation}) switched to {currentBehaviorName}");
     }
 
     // Event handlers
-    private void HandleMatingStarted(GameObject partner)
+    private void HandleMatingStarted(IAgent partner)
     {
-        // Switch to stationary mating behavior
-        SetBehavior(new MatingBehavior(partner.transform));
-    }
+        Debug.Log("HandleMatingStarted called, partner: " + (partner != null ? "found" : "null"));
 
+        // Type cast to get GameObject - will need to change if we fully adapt to IAgent
+        GameObject partnerObject = null;
+        if (partner is AgentAdapter adapter)
+        {
+            partnerObject = adapter.GameObject;
+            Debug.Log("Partner GameObject obtained: " + partnerObject.name);
+        }
+        else
+        {
+            Debug.LogError("Partner is not an AgentAdapter or is null");
+        }
+
+        // Switch to stationary mating behavior
+        SetBehavior(new MatingBehavior(partnerObject?.transform));
+        Debug.Log("Switched to MatingBehavior");
+    }
     private void HandleMatingCompleted()
     {
         // Return to wandering after mating
@@ -177,35 +283,41 @@ public class AgentController : MonoBehaviour
 
     private void HandleOffspringRequested(Vector3 position)
     {
+        Debug.Log("HandleOffspringRequested called at position: " + position);
+
         // Find the spawner and request offspring creation
         AgentSpawner spawner = FindObjectOfType<AgentSpawner>();
         if (spawner != null)
         {
-            // Get the mating partner - use the property you added
-            GameObject partner = ReproductionSystem.matingPartner;
+            // Get the partner GameObject directly
+            GameObject partner = reproductionSystem.matingPartnerGameObject;
 
-            // Spawn the offspring
+            Debug.Log("Partner for offspring: " + (partner != null ? partner.name : "null"));
+            Debug.Log("About to call SpawnOffspring on AgentSpawner");
+
             spawner.SpawnOffspring(gameObject, partner, position);
         }
         else
         {
-            Debug.LogWarning("No AgentSpawner found in scene. Cannot create offspring.");
+            Debug.LogError("No AgentSpawner found in scene. Cannot create offspring.");
         }
     }
-
     private void HandleDeath(string cause)
     {
-        // Find spawner or simulation manager to report death
-        AgentSpawner spawner = FindObjectOfType<AgentSpawner>();
-        if (spawner != null)
-        {
-            spawner.HandleAgentDeath(gameObject, cause);
-        }
+        // Trigger death event
+        OnAgentDeath?.Invoke(gameObject);
 
+        // Log death
         Debug.Log($"Agent {gameObject.name} (Gen {Generation}) died from {cause}");
     }
 
-    // Optional: Add methods for external code to force behavior changes
+    // Public interface for external systems
+    public AgentContext GetContext()
+    {
+        return context;
+    }
+
+    // Optional methods to force behavior changes
     public void ForceWandering()
     {
         SetBehavior(new WanderingBehavior());

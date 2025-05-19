@@ -6,6 +6,7 @@ public class WanderingBehavior : IBehaviorStrategy
 
     public WanderingBehavior()
     {
+        // Create a movement strategy with wandering parameters
         movementStrategy = MovementStrategyFactory.CreateRandomMovement(
             changeFrequency: 0.1f,
             directionalBias: 0f,
@@ -15,10 +16,9 @@ public class WanderingBehavior : IBehaviorStrategy
 
     public void Execute(AgentContext context)
     {
-        // Ensure we're using random movement
+        // Apply the random movement strategy
         context.Movement.SetMovementStrategy(movementStrategy);
     }
-
     public bool ShouldTransition(AgentContext context, out IBehaviorStrategy nextStrategy)
     {
         // Check if food is detected

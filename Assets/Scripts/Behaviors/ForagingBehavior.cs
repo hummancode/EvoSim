@@ -6,7 +6,7 @@ public class ForagingBehavior : IBehaviorStrategy
 
     public ForagingBehavior()
     {
-        // Will set the movement strategy in Execute
+        // Movement strategy will be created in Execute
     }
 
     public void Execute(AgentContext context)
@@ -15,7 +15,6 @@ public class ForagingBehavior : IBehaviorStrategy
         movementStrategy = MovementStrategyFactory.CreateFoodSeeking(context.Sensor);
         context.Movement.SetMovementStrategy(movementStrategy);
     }
-
     public bool ShouldTransition(AgentContext context, out IBehaviorStrategy nextStrategy)
     {
         // Check if we can no longer see food

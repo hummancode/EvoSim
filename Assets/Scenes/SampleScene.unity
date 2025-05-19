@@ -229,7 +229,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   minSpeed: 0.1
-  maxSpeed: 10
+  maxSpeed: 250
   defaultSpeed: 1
   useLogarithmicScale: 1
   speedSlider: {fileID: 837553518}
@@ -279,7 +279,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   agentPrefab: {fileID: 3578815953821315617, guid: 5e4c4f8ebf9792e4b964bce2a87f8b08, type: 3}
-  initialAgentCount: 22
+  initialAgentCount: 3
   worldBounds: {x: 17, y: 9.5}
   enableMutation: 1
   mutationRate: 0.1
@@ -685,7 +685,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   foodPrefab: {fileID: 7145575813018160006, guid: 18b5de75bd0275e40ba4ff8e95d31a69, type: 3}
   initialFoodCount: 2
-  spawnInterval: 0.5
+  spawnInterval: 1
   worldBounds: {x: 17, y: 9.5}
 --- !u!4 &1017238382
 Transform:
@@ -927,6 +927,10 @@ PrefabInstance:
   m_Modification:
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 3578815953821315613, guid: 5e4c4f8ebf9792e4b964bce2a87f8b08, type: 3}
+      propertyPath: behaviorUpdateInterval
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 3578815953821315617, guid: 5e4c4f8ebf9792e4b964bce2a87f8b08, type: 3}
       propertyPath: m_Name
       value: Agent

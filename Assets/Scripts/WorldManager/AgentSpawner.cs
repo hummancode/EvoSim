@@ -65,25 +65,39 @@ public class AgentSpawner : MonoBehaviour
     /// </summary>
     public GameObject SpawnOffspring(GameObject parent1, GameObject parent2, Vector3 position)
     {
-        if (parent1 == null || parent2 == null)
+        Debug.Log($"SpawnOffspring called with parents: {parent1?.name}, {parent2?.name}");
+
+        if (parent1 == null)
         {
-            Debug.LogWarning("Cannot spawn offspring: One or both parents are null");
+            Debug.LogError("Parent1 is null in SpawnOffspring");
             return null;
+        }
+
+        if (parent2 == null)
+        {
+            Debug.LogWarning("Parent2 is null in SpawnOffspring - using just parent1 for offspring");
+            // Continue with just parent1
         }
 
         // Create the new agent
         GameObject offspring = SpawnAgentAt(position);
+        Debug.Log($"Created offspring at position {position}");
 
         // Get components
         AgentController parent1Agent = parent1.GetComponent<AgentController>();
-        AgentController parent2Agent = parent2.GetComponent<AgentController>();
+        AgentController parent2Agent = parent2?.GetComponent<AgentController>();
         AgentController offspringAgent = offspring.GetComponent<AgentController>();
 
-        if (parent1Agent != null && parent2Agent != null && offspringAgent != null)
+        if (parent1Agent != null && offspringAgent != null)
         {
             // Set generation
-            int newGeneration = Mathf.Max(parent1Agent.Generation, parent2Agent.Generation) + 1;
+            int parentGen = parent1Agent.Generation;
+            int parent2Gen = parent2Agent?.Generation ?? parentGen;
+            int maxGen = Mathf.Max(parentGen, parent2Gen);
+            int newGeneration = maxGen + 1;
+
             offspringAgent.Generation = newGeneration;
+            Debug.Log($"Set offspring generation to {newGeneration}");
 
             // Update highest generation stat
             if (newGeneration > highestGeneration)
@@ -95,7 +109,7 @@ public class AgentSpawner : MonoBehaviour
             InheritTraits(parent1, parent2, offspring);
         }
 
-        Debug.Log($"Spawned offspring (Gen {offspringAgent.Generation}) from {parent1.name} and {parent2.name}");
+        Debug.Log($"Spawned offspring from {parent1.name} and {(parent2 != null ? parent2.name : "unknown")}");
         return offspring;
     }
 
