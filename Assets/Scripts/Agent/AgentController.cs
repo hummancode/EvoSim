@@ -9,7 +9,7 @@ public class AgentController : MonoBehaviour
     private ConsumptionSystem consumptionSystem;
     private DeathSystem deathSystem;
     private ReproductionSystem reproductionSystem;
-
+    private MatingCoordinator coordinator;
     // Agent Context (for behavior strategies)
     private AgentContext context;
 
@@ -54,6 +54,7 @@ public class AgentController : MonoBehaviour
 
     private void InitializeComponents()
     {
+        MatingCoordinator coordinator = MatingCoordinator.Instance;
         // Get or add each component
         movementSystem = GetOrAddComponent<MovementSystem>();
         sensorSystem = GetOrAddComponent<SensorSystem>();
@@ -91,12 +92,12 @@ public class AgentController : MonoBehaviour
             // Make sure we're not double-subscribing
             reproductionSystem.OnMatingStarted -= HandleMatingStarted;
             reproductionSystem.OnMatingCompleted -= HandleMatingCompleted;
-            reproductionSystem.OnOffspringRequested -= HandleOffspringRequested;
+           
 
             // Subscribe to events
             reproductionSystem.OnMatingStarted += HandleMatingStarted;
             reproductionSystem.OnMatingCompleted += HandleMatingCompleted;
-            reproductionSystem.OnOffspringRequested += HandleOffspringRequested;
+     ;
 
             Debug.Log("Successfully subscribed to reproduction events");
         }
@@ -119,7 +120,7 @@ public class AgentController : MonoBehaviour
         {
             reproductionSystem.OnMatingStarted -= HandleMatingStarted;
             reproductionSystem.OnMatingCompleted -= HandleMatingCompleted;
-            reproductionSystem.OnOffspringRequested -= HandleOffspringRequested;
+           
         }
 
         if (energySystem != null)
@@ -257,51 +258,21 @@ public class AgentController : MonoBehaviour
     // Event handlers
     private void HandleMatingStarted(IAgent partner)
     {
-        Debug.Log("HandleMatingStarted called, partner: " + (partner != null ? "found" : "null"));
+        Debug.Log($"{gameObject.name}: HandleMatingStarted called");
 
-        // Type cast to get GameObject - will need to change if we fully adapt to IAgent
-        GameObject partnerObject = null;
-        if (partner is AgentAdapter adapter)
-        {
-            partnerObject = adapter.GameObject;
-            Debug.Log("Partner GameObject obtained: " + partnerObject.name);
-        }
-        else
-        {
-            Debug.LogError("Partner is not an AgentAdapter or is null");
-        }
-
-        // Switch to stationary mating behavior
-        SetBehavior(new MatingBehavior(partnerObject?.transform));
-        Debug.Log("Switched to MatingBehavior");
+        // Switch to mating behavior
+        SetBehavior(new MatingBehavior());
     }
+
     private void HandleMatingCompleted()
     {
-        // Return to wandering after mating
+        Debug.Log($"{gameObject.name}: HandleMatingCompleted called");
+
+        // Switch back to wandering
         SetBehavior(new WanderingBehavior());
     }
 
-    private void HandleOffspringRequested(Vector3 position)
-    {
-        Debug.Log("HandleOffspringRequested called at position: " + position);
 
-        // Find the spawner and request offspring creation
-        AgentSpawner spawner = FindObjectOfType<AgentSpawner>();
-        if (spawner != null)
-        {
-            // Get the partner GameObject directly
-            GameObject partner = reproductionSystem.matingPartnerGameObject;
-
-            Debug.Log("Partner for offspring: " + (partner != null ? partner.name : "null"));
-            Debug.Log("About to call SpawnOffspring on AgentSpawner");
-
-            spawner.SpawnOffspring(gameObject, partner, position);
-        }
-        else
-        {
-            Debug.LogError("No AgentSpawner found in scene. Cannot create offspring.");
-        }
-    }
     private void HandleDeath(string cause)
     {
         // Trigger death event

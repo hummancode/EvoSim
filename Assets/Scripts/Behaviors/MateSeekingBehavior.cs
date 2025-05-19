@@ -1,9 +1,12 @@
 using UnityEngine;
 
+/// <summary>
+/// Behavior for seeking and initiating mating with other agents
+/// </summary>
 public class MateSeekingBehavior : IBehaviorStrategy
 {
-    private IAgent currentTarget;
     private IMovementStrategy movementStrategy;
+    private IAgent currentTarget;
 
     public void Execute(AgentContext context)
     {
@@ -25,32 +28,22 @@ public class MateSeekingBehavior : IBehaviorStrategy
             // Check if close enough to mate
             if (context.Reproduction.CanMateWith(potentialMate))
             {
-                Debug.Log("Close enough to mate, initiating mating");
+                Debug.Log("Close enough to mate, creating mating command");
 
-                // Start mating
-                context.Reproduction.InitiateMating(potentialMate);
+                // Create and execute mating command
+                ICommand matingCommand = new InitiateMatingCommand(
+                    context.Agent,
+                    potentialMate,
+                    MatingCoordinator.Instance
+                );
 
-                // Tell partner to accept mating
-                potentialMate.ReproductionSystem.AcceptMating(context.Agent);
-
-                // Stay still during mating
+                CommandDispatcher.Instance.ExecuteCommand(matingCommand);
                 StopMoving(context);
-                Debug.Log("Mating initiated, staying still");
             }
             else
             {
-                // Not close enough, move toward mate
-                if (potentialMate is AgentAdapter adapter)
-                {
-                    Debug.Log("Moving toward potential mate");
-
-                    // Set as current target
-                    currentTarget = potentialMate;
-
-                    // Create targeted movement
-                    movementStrategy = new TargetedMovement(adapter.GameObject.transform);
-                    context.Movement.SetMovementStrategy(movementStrategy);
-                }
+                Debug.Log("Moving toward potential mate");
+                MoveTowardMate(context, potentialMate);
             }
         }
         else
@@ -64,6 +57,25 @@ public class MateSeekingBehavior : IBehaviorStrategy
         }
     }
 
+    /// <summary>
+    /// Sets movement to approach the potential mate
+    /// </summary>
+    private void MoveTowardMate(AgentContext context, IAgent potentialMate)
+    {
+        if (potentialMate is AgentAdapter adapter && adapter.GameObject != null)
+        {
+            // Set as current target
+            currentTarget = potentialMate;
+
+            // Create targeted movement
+            movementStrategy = new TargetedMovement(adapter.GameObject.transform);
+            context.Movement.SetMovementStrategy(movementStrategy);
+        }
+    }
+
+    /// <summary>
+    /// Stops the agent's movement
+    /// </summary>
     private void StopMoving(AgentContext context)
     {
         // Create a stationary strategy

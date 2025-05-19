@@ -1,13 +1,14 @@
 using UnityEngine;
 
+/// <summary>
+/// Behavior for agents that are currently mating
+/// </summary>
 public class MatingBehavior : IBehaviorStrategy
 {
-    private Transform partnerTransform;
     private IMovementStrategy stationaryStrategy;
 
-    public MatingBehavior(Transform partner = null)
+    public MatingBehavior()
     {
-        partnerTransform = partner;
         stationaryStrategy = new StationaryMovement();
     }
 
@@ -15,5 +16,11 @@ public class MatingBehavior : IBehaviorStrategy
     {
         // Stay still during mating
         context.Movement.SetMovementStrategy(stationaryStrategy);
+
+        // Check if mating has completed
+        if (!context.Reproduction.IsMating)
+        {
+            Debug.Log("Mating completed, should transition to another behavior");
+        }
     }
 }
