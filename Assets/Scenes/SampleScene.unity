@@ -154,12 +154,12 @@ RectTransform:
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 567596697}
-  m_RootOrder: 1
+  m_RootOrder: 0
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 562.5, y: 20.62}
-  m_SizeDelta: {x: 403.9, y: 485.6}
+  m_SizeDelta: {x: 403.9, y: 470.2}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &59684191
 MonoBehaviour:
@@ -257,7 +257,7 @@ CanvasRenderer:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 59684189}
-  m_CullTransparentMesh: 1
+  m_CullTransparentMesh: 0
 --- !u!1 &111561721
 GameObject:
   m_ObjectHideFlags: 0
@@ -414,7 +414,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   agentPrefab: {fileID: 3578815953821315617, guid: 5e4c4f8ebf9792e4b964bce2a87f8b08, type: 3}
-  initialAgentCount: 12
+  initialAgentCount: 5
   worldBounds: {x: 17, y: 9.5}
   enableMutation: 1
   mutationRate: 0.1
@@ -552,8 +552,8 @@ RectTransform:
   m_LocalScale: {x: 0, y: 0, z: 0}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 837553517}
   - {fileID: 59684190}
+  - {fileID: 837553517}
   m_Father: {fileID: 0}
   m_RootOrder: 7
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
@@ -656,7 +656,7 @@ RectTransform:
   - {fileID: 2013003419}
   - {fileID: 1536505779}
   m_Father: {fileID: 567596697}
-  m_RootOrder: 0
+  m_RootOrder: 1
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
@@ -821,7 +821,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   foodPrefab: {fileID: 7145575813018160006, guid: 18b5de75bd0275e40ba4ff8e95d31a69, type: 3}
   initialFoodCount: 5
-  spawnInterval: 0.1
+  spawnInterval: 1
   worldBounds: {x: 17, y: 9.5}
 --- !u!4 &1017238382
 Transform:
