@@ -12,6 +12,12 @@ public class ConsumptionSystem : MonoBehaviour
             energySystem = GetComponent<EnergySystem>();
     }
 
+    // Add Initialize method
+    public void Initialize(EnergySystem energy)
+    {
+        energySystem = energy;
+    }
+
     void OnTriggerEnter2D(Collider2D other)
     {
         Debug.Log("On trigger collide");

@@ -1,17 +1,21 @@
 using UnityEngine;
 
-/// <summary>
-/// Main controller for agents - now acts as a coordinator between specialized components
-/// </summary>
 public class AgentController : MonoBehaviour
 {
-    // External configuration
     [Header("Generation")]
     [SerializeField] private int generation = 1;
 
     [Header("Behavior")]
     [SerializeField] private float behaviorUpdateInterval = 0.2f;
     [SerializeField] private string currentBehaviorName;
+
+    // Components
+    private MovementSystem movementSystem;
+    private SensorSystem sensorSystem;
+    private EnergySystem energySystem;
+    private ConsumptionSystem consumptionSystem;
+    private DeathSystem deathSystem;
+    private ReproductionSystem reproductionSystem;
 
     // Managers - these will be injected
     private IAgentComponentProvider componentProvider;
@@ -43,6 +47,14 @@ public class AgentController : MonoBehaviour
         contextBuilder = new AgentContextBuilder(this, componentProvider);
         behaviorManager = new BehaviorManager(this, behaviorUpdateInterval);
         eventManager = new AgentEventManager(this, componentProvider);
+
+        // Ensure all required components
+        movementSystem = componentProvider.GetMovementSystem();
+        sensorSystem = componentProvider.GetSensorSystem();
+        energySystem = componentProvider.GetEnergySystem();
+        consumptionSystem = componentProvider.GetConsumptionSystem();
+        deathSystem = componentProvider.GetDeathSystem();
+        reproductionSystem = componentProvider.GetReproductionSystem();
 
         // Build initial context
         context = contextBuilder.BuildContext();
@@ -86,7 +98,18 @@ public class AgentController : MonoBehaviour
     }
 
     // Optional behavior forcing methods
-    public void ForceWandering() => behaviorManager.ForceBehavior<WanderingBehavior>(context);
-    public void ForceForaging() => behaviorManager.ForceBehavior<ForagingBehavior>(context);
-    public void ForceMateSeek() => behaviorManager.ForceBehavior<MateSeekingBehavior>(context);
+    public void ForceWandering()
+    {
+        behaviorManager.ForceBehavior<WanderingBehavior>(context);
+    }
+
+    public void ForceForaging()
+    {
+        behaviorManager.ForceBehavior<ForagingBehavior>(context);
+    }
+
+    public void ForceMateSeek()
+    {
+        behaviorManager.ForceBehavior<MateSeekingBehavior>(context);
+    }
 }

@@ -16,7 +16,7 @@ public interface IMovementStrategy
 
 
 // In MovementSystem
-public class MovementSystem : MonoBehaviour
+public class MovementSystem : MonoBehaviour, IMovementSystem
 {
     [Header("Movement Settings")]
     [SerializeField] private float moveSpeed = 2.0f;

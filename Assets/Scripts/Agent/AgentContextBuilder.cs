@@ -1,9 +1,5 @@
-
-
 using UnityEngine;
-/// <summary>
-/// Default implementation for building agent context
-/// </summary>
+
 public class AgentContextBuilder : IAgentContextBuilder
 {
     private readonly MonoBehaviour agent;

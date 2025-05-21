@@ -11,16 +11,30 @@ public class ForagingBehavior : IBehaviorStrategy
 
     public void Execute(AgentContext context)
     {
-        // Create food seeking strategy using the agent's sensor
+        Debug.Log("Executing ForagingBehavior");
+
+        // Check if there's food available
+        IEdible food = context.Sensor.GetNearestEdible();
+        if (food == null)
+        {
+            Debug.LogWarning("ForagingBehavior cannot find food - switching to wandering");
+            context.Movement.SetMovementStrategy(MovementStrategyFactory.CreateRandomMovement());
+            return;
+        }
+
+        // Create food seeking strategy
         movementStrategy = MovementStrategyFactory.CreateFoodSeeking(context.Sensor);
+
+        // Set the strategy
+        Debug.Log("Setting FoodSeekingMovement strategy");
         context.Movement.SetMovementStrategy(movementStrategy);
     }
     public bool ShouldTransition(AgentContext context, out IBehaviorStrategy nextStrategy)
     {
         // Check if we can no longer see food
-        GameObject food = context.Sensor.GetNearestFood();
+        IEdible nearestFood = context.Sensor.GetNearestEdible();
 
-        if (food == null)
+        if (nearestFood == null)
         {
             nextStrategy = new WanderingBehavior();
             return true;

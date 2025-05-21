@@ -4,7 +4,7 @@ using UnityEngine;
 /// <summary>
 /// Component that manages an agent's reproductive capabilities
 /// </summary>
-public class ReproductionSystem : MonoBehaviour, IReproductionCapable
+public class ReproductionSystem : MonoBehaviour, IReproductionSystem
 {
     [SerializeField] private ReproductionConfig config;
 

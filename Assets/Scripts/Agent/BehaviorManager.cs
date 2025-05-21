@@ -1,7 +1,5 @@
 using UnityEngine;
-/// <summary>
-/// Default implementation for managing behaviors
-/// </summary>
+
 public class BehaviorManager : IBehaviorManager
 {
     private readonly AgentController agent;
@@ -43,53 +41,49 @@ public class BehaviorManager : IBehaviorManager
 
     private void DetermineBehavior(AgentContext context)
     {
+        // Get references
+        IReproductionCapable reproduction = context.Reproduction;
+        IEnergyProvider energy = context.Energy;
+        SensorSystem sensor = context.Sensor;
+
         // If currently mating, stay in mating behavior
-        if (reproductionSystem.IsMating)
+        if (reproduction.IsMating)
         {
             if (!(currentBehavior is MatingBehavior))
-                SetBehavior(new MatingBehavior());
+                SetBehavior(new MatingBehavior(), context);
             return;
         }
 
         // If hungry and food is nearby, switch to foraging
-        if (energySystem.IsHungry)
+        if (energy.IsHungry)
         {
-            IEdible nearestFood = sensorSystem.GetNearestEdible();
+            IEdible nearestFood = sensor.GetNearestEdible();
             if (nearestFood != null)
             {
                 if (!(currentBehavior is ForagingBehavior))
-                    SetBehavior(new ForagingBehavior());
+                    SetBehavior(new ForagingBehavior(), context);
                 return;
             }
         }
 
         // If ready to mate and potential mates exist, seek mates
-        if (energySystem.HasEnoughEnergyForMating && reproductionSystem.CanMate)
+        if (energy.HasEnoughEnergyForMating && reproduction.CanMate)
         {
-            AgentController potentialMate = sensorSystem.GetNearestEntity<AgentController>(
-                filter: agent => {
-                    if (agent.gameObject == gameObject) return false; // Skip self
-
-                    ReproductionSystem repro = agent.GetComponent<ReproductionSystem>();
-                    EnergySystem energy = agent.GetComponent<EnergySystem>();
-
-                    return repro != null && repro.CanMate &&
-                           energy != null && energy.HasEnoughEnergyForMating;
-                }
-            );
+            IAgent potentialMate = context.MateFinder.FindNearestPotentialMate();
 
             if (potentialMate != null)
             {
                 if (!(currentBehavior is MateSeekingBehavior))
-                    SetBehavior(new MateSeekingBehavior());
+                    SetBehavior(new MateSeekingBehavior(), context);
                 return;
             }
         }
 
         // Default to wandering
         if (!(currentBehavior is WanderingBehavior))
-            SetBehavior(new WanderingBehavior());
+            SetBehavior(new WanderingBehavior(), context);
     }
+
     private void SetBehavior(IBehaviorStrategy behavior, AgentContext context)
     {
         // Avoid redundant behavior changes

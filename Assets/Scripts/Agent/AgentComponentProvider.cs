@@ -1,9 +1,7 @@
-
-
+using System;
+using System.Collections.Generic;
 using UnityEngine;
-/// <summary>
-/// Default implementation for getting/creating agent components
-/// </summary>
+
 public class AgentComponentProvider : IAgentComponentProvider
 {
     private readonly MonoBehaviour agent;

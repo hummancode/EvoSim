@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System;
 using UnityEngine;
 
-public class SensorSystem : MonoBehaviour
+public class SensorSystem : MonoBehaviour, ISensorSystem
 {
     [Header("Sensor Settings")]
     [SerializeField] private float detectionRange = 4f;

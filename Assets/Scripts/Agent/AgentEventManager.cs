@@ -1,9 +1,5 @@
-
-
-// <summary>
 using UnityEngine;
-/// Default implementation for managing agent events
-/// </summary>
+
 public class AgentEventManager : IAgentEventManager
 {
     private readonly AgentController agent;
@@ -70,7 +66,7 @@ public class AgentEventManager : IAgentEventManager
         Debug.Log($"{agent.gameObject.name}: HandleMatingStarted called");
 
         // Force behavior change
-        agent.ForceWandering(); // This will transition through behavior manager
+        agent.ForceWandering();
     }
 
     private void HandleMatingCompleted()
