@@ -29,32 +29,69 @@ public class AgentController : MonoBehaviour
     // Event delegates
     public delegate void AgentEventHandler(GameObject agent);
     public event AgentEventHandler OnAgentDeath;
+    private AgentIdentity identity;
+    private GeneticsSystem geneticsSystem;
+    private AgeSystem ageSystem;
 
     // Properties
     public int Generation
     {
-        get => generation;
-        set => generation = value;
+        get => identity != null ? identity.Generation : 1;
+        set
+        {
+            if (identity != null)
+                identity.SetGeneration(value);
+        }
     }
+
+    public int AgentId => identity != null ? identity.AgentId : 0;
 
     void Awake()
     {
         // Set the agent to the Agent layer
         gameObject.layer = LayerMask.NameToLayer("Agent");
 
-        // Create managers
+        // Get identity component
+        identity = GetComponent<AgentIdentity>();
+        if (identity == null)
+        {
+            identity = gameObject.AddComponent<AgentIdentity>();
+        }
+
+        // Get genetics system
+        geneticsSystem = GetComponent<GeneticsSystem>();
+        if (geneticsSystem == null)
+        {
+            geneticsSystem = gameObject.AddComponent<GeneticsSystem>();
+        }
+
+        // Get age system
+        ageSystem = GetComponent<AgeSystem>();
+        if (ageSystem == null)
+        {
+            ageSystem = gameObject.AddComponent<AgeSystem>();
+        }
+
+        // Create managers (existing code)
         componentProvider = new AgentComponentProvider(this);
         contextBuilder = new AgentContextBuilder(this, componentProvider);
         behaviorManager = new BehaviorManager(this, behaviorUpdateInterval);
         eventManager = new AgentEventManager(this, componentProvider);
 
-        // Ensure all required components
         movementSystem = componentProvider.GetMovementSystem();
         sensorSystem = componentProvider.GetSensorSystem();
         energySystem = componentProvider.GetEnergySystem();
         consumptionSystem = componentProvider.GetConsumptionSystem();
         deathSystem = componentProvider.GetDeathSystem();
         reproductionSystem = componentProvider.GetReproductionSystem();
+        ageSystem.Initialize(deathSystem, geneticsSystem);
+        // Get additional systems
+    
+        // Initialize age system with dependencies
+        if (ageSystem != null)
+        {
+            ageSystem.Initialize(deathSystem, geneticsSystem);
+        }
 
         // Build initial context
         context = contextBuilder.BuildContext();
@@ -64,6 +101,20 @@ public class AgentController : MonoBehaviour
 
         // Start with wandering behavior
         behaviorManager.SetInitialBehavior(context);
+    }
+
+    // Existing methods...
+
+    // Add method to access genetics system
+    public GeneticsSystem GetGeneticsSystem()
+    {
+        return geneticsSystem;
+    }
+
+    // Add method to access age system
+    public AgeSystem GetAgeSystem()
+    {
+        return ageSystem;
     }
 
     void OnDestroy()

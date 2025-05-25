@@ -63,21 +63,36 @@ public class ReproductionSystem : MonoBehaviour, IReproductionSystem
     /// </summary>
     public bool CanMateWith(IAgent partner)
     {
-        // Validate self can mate
-        if (!CanMate)
+        // Check age maturity first
+        AgeSystem ageSystem = GetComponent<AgeSystem>();
+        if (ageSystem != null && !ageSystem.IsMature)
+        {
+            return false;
+        }
+
+        // Check partner age maturity
+        if (partner is AgentAdapter adapter && adapter.GameObject != null)
+        {
+            AgeSystem partnerAgeSystem = adapter.GameObject.GetComponent<AgeSystem>();
+            if (partnerAgeSystem != null && !partnerAgeSystem.IsMature)
+            {
+                return false;
+            }
+        }
+
+        // Rest of the existing checks
+        if (!CanMate || energyProvider == null || !energyProvider.HasEnoughEnergyForMating)
             return false;
 
-        // Validate partner
         if (partner == null)
             return false;
 
-        // Validate partner can mate
-        if (!partner.ReproductionSystem.CanMate)
+        if (!partner.ReproductionSystem.CanMate ||
+            !partner.EnergySystem.HasEnoughEnergyForMating)
             return false;
 
-        // Check distance
         float distance = mateFinder.GetDistanceTo(partner);
-        return distance <= MatingProximity;
+        return distance <= config.matingProximity;
     }
 
     /// <summary>

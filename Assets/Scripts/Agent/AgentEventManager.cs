@@ -63,7 +63,7 @@ public class AgentEventManager : IAgentEventManager
     // Event handlers
     private void HandleMatingStarted(IAgent partner)
     {
-        Debug.Log($"{agent.gameObject.name}: HandleMatingStarted called");
+        //Debug.Log($"{agent.gameObject.name}: HandleMatingStarted called");
 
         // Force behavior change
         agent.ForceWandering();
@@ -71,7 +71,7 @@ public class AgentEventManager : IAgentEventManager
 
     private void HandleMatingCompleted()
     {
-        Debug.Log($"{agent.gameObject.name}: HandleMatingCompleted called");
+        //Debug.Log($"{agent.gameObject.name}: HandleMatingCompleted called");
 
         // Switch back to wandering
         agent.ForceWandering();

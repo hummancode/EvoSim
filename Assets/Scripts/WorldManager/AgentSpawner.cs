@@ -73,15 +73,8 @@ public class AgentSpawner : MonoBehaviour
             return null;
         }
 
-        if (parent2 == null)
-        {
-            Debug.LogWarning("Parent2 is null in SpawnOffspring - using just parent1 for offspring");
-            // Continue with just parent1
-        }
-
         // Create the new agent
         GameObject offspring = SpawnAgentAt(position);
-        Debug.Log($"Created offspring at position {position}");
 
         // Get components
         AgentController parent1Agent = parent1.GetComponent<AgentController>();
@@ -93,8 +86,7 @@ public class AgentSpawner : MonoBehaviour
             // Set generation
             int parentGen = parent1Agent.Generation;
             int parent2Gen = parent2Agent?.Generation ?? parentGen;
-            int maxGen = Mathf.Max(parentGen, parent2Gen);
-            int newGeneration = maxGen + 1;
+            int newGeneration = Mathf.Max(parentGen, parent2Gen) + 1;
 
             offspringAgent.Generation = newGeneration;
             Debug.Log($"Set offspring generation to {newGeneration}");
@@ -105,8 +97,24 @@ public class AgentSpawner : MonoBehaviour
                 highestGeneration = newGeneration;
             }
 
-            // If you have genome components, inherit traits
-            InheritTraits(parent1, parent2, offspring);
+            // Inherit genetic traits
+            GeneticsSystem offspringGenetics = offspringAgent.GetGeneticsSystem();
+            GeneticsSystem parent1Genetics = parent1Agent.GetGeneticsSystem();
+            GeneticsSystem parent2Genetics = parent2Agent?.GetGeneticsSystem();
+
+            if (offspringGenetics != null && parent1Genetics != null)
+            {
+                offspringGenetics.InheritFrom(parent1Genetics, parent2Genetics);
+
+                // Update age system from genetics
+                AgeSystem ageSystem = offspringAgent.GetAgeSystem();
+                if (ageSystem != null)
+                {
+                    float deathAge = offspringGenetics.GetTraitValue(Genome.DEATH_AGE, 70f);
+                    float pubertyAge = offspringGenetics.GetTraitValue(Genome.PUBERTY_AGE, 20f);
+                    ageSystem.SetAgeValues(deathAge, pubertyAge);
+                }
+            }
         }
 
         Debug.Log($"Spawned offspring from {parent1.name} and {(parent2 != null ? parent2.name : "unknown")}");
