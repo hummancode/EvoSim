@@ -11,14 +11,51 @@ public class EndMatingCommand : IReproductionCommand
 
     public void Execute()
     {
-        if (agent?.ReproductionSystem != null)
+        try
         {
-            Debug.Log($"Executing EndMatingCommand for {agent}");
-            agent.ReproductionSystem.ResetMatingState();
+            // CRITICAL FIX: Check if agent still exists
+            if (agent == null)
+            {
+                Debug.Log("EndMatingCommand: Agent is null (probably died during mating)");
+                return;
+            }
+
+            // CRITICAL FIX: Check if agent adapter is still valid
+            if (agent is AgentAdapter adapter && !adapter.IsValid())
+            {
+                Debug.Log("EndMatingCommand: Agent died during mating process");
+                return;
+            }
+
+            // CRITICAL FIX: Check if reproduction system still exists
+            var reproductionSystem = agent.ReproductionSystem;
+            if (reproductionSystem == null)
+            {
+                Debug.Log("EndMatingCommand: Agent's reproduction system is null");
+                return;
+            }
+
+            // Safe to execute
+            Debug.Log($"Executing EndMatingCommand for {GetAgentName(agent)}");
+            reproductionSystem.ResetMatingState();
         }
-        else
+        catch (System.Exception e)
         {
-            Debug.LogError("Cannot execute EndMatingCommand: agent or reproduction system is null");
+            Debug.LogWarning($"Error in EndMatingCommand: {e.Message}");
+        }
+    }
+
+    private string GetAgentName(IAgent agent)
+    {
+        try
+        {
+            if (agent is AgentAdapter adapter && adapter.IsValid())
+                return adapter.GameObject.name;
+            return "unknown/dead agent";
+        }
+        catch
+        {
+            return "destroyed agent";
         }
     }
 }

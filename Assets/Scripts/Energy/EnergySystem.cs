@@ -3,11 +3,11 @@ using UnityEngine;
 public class EnergySystem : MonoBehaviour, IEnergyProvider
 {
     [Header("Energy Settings")]
-    [SerializeField] private float currentEnergy = 100f;
-    [SerializeField] private float maxEnergy = 180f;
-    [SerializeField] private float energyConsumptionRate = 2f; // Energy consumed per second
-    [SerializeField] private float hungerThreshold = 30f; // Energy level considered "hungry"
-    [SerializeField] private float matingEnergyThreshold = 60f;
+    [SerializeField] private float currentEnergy = 120f;
+    [SerializeField] private float maxEnergy = 380f;
+    [SerializeField] private float energyConsumptionRate = 3f; // Energy consumed per second
+    [SerializeField] private float hungerThreshold = 230f; // Energy level considered "hungry"
+    [SerializeField] private float matingEnergyThreshold = 150f;
 
     // Properties
     public bool IsHungry => currentEnergy < hungerThreshold;

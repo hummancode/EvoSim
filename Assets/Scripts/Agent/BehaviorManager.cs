@@ -46,6 +46,9 @@ public class BehaviorManager : IBehaviorManager
         IEnergyProvider energy = context.Energy;
         SensorSystem sensor = context.Sensor;
 
+        // ADD THIS - Get age system to check maturity
+        AgeSystem ageSystem = agent.GetComponent<AgeSystem>();
+
         // If currently mating, stay in mating behavior
         if (reproduction.IsMating)
         {
@@ -66,8 +69,10 @@ public class BehaviorManager : IBehaviorManager
             }
         }
 
-        // If ready to mate and potential mates exist, seek mates
-        if (energy.HasEnoughEnergyForMating && reproduction.CanMate)
+        // MODIFIED - If ready to mate AND mature, seek mates
+        if (context.Energy.HasEnoughEnergyForMating &&
+                 context.Reproduction.CanMate &&
+                 context.Maturity.CanReproduce)
         {
             IAgent potentialMate = context.MateFinder.FindNearestPotentialMate();
 
@@ -83,7 +88,6 @@ public class BehaviorManager : IBehaviorManager
         if (!(currentBehavior is WanderingBehavior))
             SetBehavior(new WanderingBehavior(), context);
     }
-
     private void SetBehavior(IBehaviorStrategy behavior, AgentContext context)
     {
         // Avoid redundant behavior changes

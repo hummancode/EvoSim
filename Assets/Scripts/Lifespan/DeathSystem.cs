@@ -32,7 +32,18 @@ public class DeathSystem : MonoBehaviour
     public void Die(string cause)
     {
         Debug.Log($"Agent died from {cause}");
+        float age = 0f;
+        int generation = 1;
 
+        AgeSystem ageSystem = GetComponent<AgeSystem>();
+        if (ageSystem != null)
+            age = ageSystem.Age;
+
+        AgentController agentController = GetComponent<AgentController>();
+        if (agentController != null)
+            generation = agentController.Generation;
+
+        StatisticsManager.Instance.ReportAgentDied(age, cause, generation);
         // Trigger event
         OnDeath?.Invoke(cause);
 

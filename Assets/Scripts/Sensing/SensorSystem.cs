@@ -6,67 +6,181 @@ public class SensorSystem : MonoBehaviour, ISensorSystem
 {
     [Header("Sensor Settings")]
     [SerializeField] private float detectionRange = 4f;
-    [SerializeField] private LayerMask agentLayer; // For agent detection
-    [SerializeField] private LayerMask foodLayer;  // For food detection
+    [SerializeField] private LayerMask agentLayer;
+    [SerializeField] private LayerMask foodLayer;
+
+    [Header("Performance Settings")]
+    [SerializeField] private float cacheRefreshInterval = 0.05f; // Cache results for 50ms
+    [SerializeField] private int maxDetectionResults = 20; // Limit results per query
+    [SerializeField] private bool useNonAllocMethods = true; // Use garbage-free methods
 
     [Header("Debugging")]
     [SerializeField] private bool showDetectionGizmos = true;
     [SerializeField] private Color detectionRangeColor = new Color(0.2f, 0.8f, 0.2f, 0.3f);
 
-    // Reference to the parent agent's transform (cached for performance)
+    // Performance optimizations
     private Transform agentTransform;
+    private Dictionary<CacheKey, CachedResult> cache = new Dictionary<CacheKey, CachedResult>();
+    private Collider2D[] colliderBuffer; // Reusable buffer for non-alloc methods
+
+    // Cache structures
+    private struct CacheKey
+    {
+        public System.Type componentType;
+        public float range;
+        public int filterHash;
+
+        public CacheKey(System.Type type, float range, int filterHash)
+        {
+            this.componentType = type;
+            this.range = range;
+            this.filterHash = filterHash;
+        }
+
+        public override bool Equals(object obj)
+        {
+            if (obj is CacheKey other)
+            {
+                return componentType == other.componentType &&
+                       Mathf.Approximately(range, other.range) &&
+                       filterHash == other.filterHash;
+            }
+            return false;
+        }
+
+        public override int GetHashCode()
+        {
+            return componentType.GetHashCode() ^ range.GetHashCode() ^ filterHash;
+        }
+    }
+
+    private struct CachedResult
+    {
+        public object result;
+        public float cacheTime;
+        public bool isValid;
+
+        public CachedResult(object result, float cacheTime)
+        {
+            this.result = result;
+            this.cacheTime = cacheTime;
+            this.isValid = true;
+        }
+
+        public bool IsExpired(float currentTime, float refreshInterval)
+        {
+            return currentTime - cacheTime > refreshInterval;
+        }
+    }
 
     void Awake()
     {
         agentTransform = transform;
 
-        // Initialize default layers if not set
+        // Initialize layer masks
         if (foodLayer == 0)
-        {
             foodLayer = LayerMask.GetMask("Food");
-        }
-
         if (agentLayer == 0)
-        {
             agentLayer = LayerMask.GetMask("Agent");
+
+        // Initialize collider buffer for non-alloc methods
+        colliderBuffer = new Collider2D[maxDetectionResults];
+    }
+
+    void Update()
+    {
+        // Clean expired cache entries periodically
+        if (Time.frameCount % 60 == 0) // Every 60 frames (~1 second at 60fps)
+        {
+            CleanExpiredCache();
         }
     }
 
-    // Implementation of ISensorCapability
+    /// <summary>
+    /// OPTIMIZED: Get nearest entity with caching and performance optimizations
+    /// </summary>
     public T GetNearestEntity<T>(float range = -1, Func<T, bool> filter = null) where T : Component
     {
-        // Use specified range or default
         float detectionRadius = range > 0 ? range : detectionRange;
 
-        // Determine which layer mask to use based on type
+        // Create cache key
+        int filterHash = filter?.GetHashCode() ?? 0;
+        CacheKey key = new CacheKey(typeof(T), detectionRadius, filterHash);
+
+        // Check cache first
+        if (cache.TryGetValue(key, out CachedResult cached))
+        {
+            if (!cached.IsExpired(Time.time, cacheRefreshInterval))
+            {
+                return cached.result as T;
+            }
+        }
+
+        // Perform detection
+        T result = FindNearestEntityOptimized<T>(detectionRadius, filter);
+
+        // Cache the result
+        cache[key] = new CachedResult(result, Time.time);
+
+        return result;
+    }
+
+    /// <summary>
+    /// OPTIMIZED: Core detection logic with performance improvements
+    /// </summary>
+    private T FindNearestEntityOptimized<T>(float detectionRadius, Func<T, bool> filter) where T : Component
+    {
         LayerMask layerToUse = DetermineLayerMaskForType<T>();
 
-        // Find entities
-        Collider2D[] colliders = Physics2D.OverlapCircleAll(
-            agentTransform.position,
-            detectionRadius,
-            layerToUse
-        );
+        int numFound;
+        if (useNonAllocMethods)
+        {
+            // Use non-alloc method to avoid garbage collection
+            numFound = Physics2D.OverlapCircleNonAlloc(
+                agentTransform.position,
+                detectionRadius,
+                colliderBuffer,
+                layerToUse
+            );
+        }
+        else
+        {
+            // Fallback to regular method
+            Collider2D[] foundColliders = Physics2D.OverlapCircleAll(
+                agentTransform.position,
+                detectionRadius,
+                layerToUse
+            );
+
+            numFound = Mathf.Min(foundColliders.Length, maxDetectionResults);
+            for (int i = 0; i < numFound; i++)
+            {
+                colliderBuffer[i] = foundColliders[i];
+            }
+        }
 
         T nearest = null;
         float closestDistanceSqr = float.MaxValue;
 
-        foreach (Collider2D collider in colliders)
+        // Process found colliders
+        for (int i = 0; i < numFound; i++)
         {
+            Collider2D collider = colliderBuffer[i];
+
             // Skip self
             if (collider.gameObject == gameObject)
                 continue;
 
-            // Get component of requested type
-            T component = collider.GetComponent<T>();
+            // Get component (with caching)
+            T component = GetComponentCached<T>(collider);
             if (component == null)
                 continue;
 
-            // Apply filter if provided
+            // Apply filter
             if (filter != null && !filter(component))
                 continue;
 
-            // Check distance
+            // Use squared distance for performance (avoid sqrt)
             float distanceSqr = (collider.transform.position - agentTransform.position).sqrMagnitude;
             if (distanceSqr < closestDistanceSqr)
             {
@@ -78,35 +192,59 @@ public class SensorSystem : MonoBehaviour, ISensorSystem
         return nearest;
     }
 
+    /// <summary>
+    /// OPTIMIZED: Component caching to avoid repeated GetComponent calls
+    /// </summary>
+    private Dictionary<GameObject, Dictionary<System.Type, Component>> componentCache =
+        new Dictionary<GameObject, Dictionary<System.Type, Component>>();
+
+    private T GetComponentCached<T>(Collider2D collider) where T : Component
+    {
+        GameObject go = collider.gameObject;
+
+        if (!componentCache.TryGetValue(go, out Dictionary<System.Type, Component> components))
+        {
+            components = new Dictionary<System.Type, Component>();
+            componentCache[go] = components;
+        }
+
+        if (!components.TryGetValue(typeof(T), out Component component))
+        {
+            component = go.GetComponent<T>();
+            components[typeof(T)] = component; // Cache even if null
+        }
+
+        return component as T;
+    }
+
+    /// <summary>
+    /// OPTIMIZED: List version with performance improvements
+    /// </summary>
     public List<T> GetEntitiesInRange<T>(float range = -1, Func<T, bool> filter = null) where T : Component
     {
-        // Use specified range or default
         float detectionRadius = range > 0 ? range : detectionRange;
-
-        // Determine which layer mask to use based on type
         LayerMask layerToUse = DetermineLayerMaskForType<T>();
 
-        // Find entities
-        Collider2D[] colliders = Physics2D.OverlapCircleAll(
+        int numFound = Physics2D.OverlapCircleNonAlloc(
             agentTransform.position,
             detectionRadius,
+            colliderBuffer,
             layerToUse
         );
 
-        List<T> result = new List<T>();
+        List<T> result = new List<T>(numFound); // Pre-allocate capacity
 
-        foreach (Collider2D collider in colliders)
+        for (int i = 0; i < numFound; i++)
         {
-            // Skip self
+            Collider2D collider = colliderBuffer[i];
+
             if (collider.gameObject == gameObject)
                 continue;
 
-            // Get component of requested type
-            T component = collider.GetComponent<T>();
+            T component = GetComponentCached<T>(collider);
             if (component == null)
                 continue;
 
-            // Apply filter if provided
             if (filter != null && !filter(component))
                 continue;
 
@@ -118,12 +256,83 @@ public class SensorSystem : MonoBehaviour, ISensorSystem
 
     public bool HasEntityInRange<T>(float range = -1, Func<T, bool> filter = null) where T : Component
     {
+        // For boolean checks, we can exit early after finding first match
         return GetNearestEntity<T>(range, filter) != null;
     }
 
+    /// <summary>
+    /// Clean expired cache entries to prevent memory leaks
+    /// </summary>
+    private void CleanExpiredCache()
+    {
+        float currentTime = Time.time;
+        List<CacheKey> expiredKeys = new List<CacheKey>();
+
+        foreach (var kvp in cache)
+        {
+            if (kvp.Value.IsExpired(currentTime, cacheRefreshInterval * 2)) // Keep cache a bit longer
+            {
+                expiredKeys.Add(kvp.Key);
+            }
+        }
+
+        foreach (var key in expiredKeys)
+        {
+            cache.Remove(key);
+        }
+
+        // Also clean component cache for destroyed objects
+        List<GameObject> invalidObjects = new List<GameObject>();
+        foreach (var kvp in componentCache)
+        {
+            if (kvp.Key == null) // GameObject was destroyed
+            {
+                invalidObjects.Add(kvp.Key);
+            }
+        }
+
+        foreach (var obj in invalidObjects)
+        {
+            componentCache.Remove(obj);
+        }
+    }
+
+    /// <summary>
+    /// Force cache refresh for all or specific types
+    /// </summary>
+    public void RefreshCache(System.Type specificType = null)
+    {
+        if (specificType == null)
+        {
+            cache.Clear();
+        }
+        else
+        {
+            List<CacheKey> keysToRemove = new List<CacheKey>();
+            foreach (var kvp in cache)
+            {
+                if (kvp.Key.componentType == specificType)
+                {
+                    keysToRemove.Add(kvp.Key);
+                }
+            }
+
+            foreach (var key in keysToRemove)
+            {
+                cache.Remove(key);
+            }
+        }
+    }
+
+    // Existing methods with minor optimizations
     public void SetDetectionRange(float range)
     {
-        detectionRange = Mathf.Max(0.1f, range);
+        float newRange = Mathf.Max(0.1f, range);
+        if (!Mathf.Approximately(detectionRange, newRange))
+        {
+            detectionRange = newRange;
+            cache.Clear(); // Clear cache when range changes
+        }
     }
 
     public float GetDetectionRange()
@@ -131,10 +340,8 @@ public class SensorSystem : MonoBehaviour, ISensorSystem
         return detectionRange;
     }
 
-    // Helper method to determine which layer mask to use based on the requested type
     private LayerMask DetermineLayerMaskForType<T>() where T : Component
     {
-        // Check what type T is and return appropriate layer mask
         if (typeof(T) == typeof(Food) || typeof(IEdible).IsAssignableFrom(typeof(T)))
         {
             return foodLayer;
@@ -146,11 +353,10 @@ public class SensorSystem : MonoBehaviour, ISensorSystem
             return agentLayer;
         }
 
-        // Default: return all layers
         return -1;
     }
 
-    // For backward compatibility
+    // Backward compatibility methods
     public GameObject GetNearestFood()
     {
         Food food = GetNearestEntity<Food>();
@@ -162,15 +368,29 @@ public class SensorSystem : MonoBehaviour, ISensorSystem
         return GetNearestEntity<MonoBehaviour>(filter: mb => mb is IEdible) as IEdible;
     }
 
-    // Visualization for debugging
+    // Performance monitoring
+    public int GetCacheSize()
+    {
+        return cache.Count;
+    }
+
+    public int GetComponentCacheSize()
+    {
+        return componentCache.Count;
+    }
+
     void OnDrawGizmos()
     {
         if (!showDetectionGizmos) return;
 
-        // Draw detection range circle
         Gizmos.color = detectionRangeColor;
         Gizmos.DrawWireSphere(transform.position, detectionRange);
+    }
 
-        // Draw other visualizations...
+    void OnDestroy()
+    {
+        // Clean up caches
+        cache.Clear();
+        componentCache.Clear();
     }
 }

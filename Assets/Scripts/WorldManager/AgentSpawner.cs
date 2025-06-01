@@ -7,25 +7,31 @@ public class AgentSpawner : MonoBehaviour
 
     [Header("Spawn Settings")]
     [SerializeField] private int initialAgentCount = 10;
-    [SerializeField] private Vector2 worldBounds = new Vector2(17f, 9.5f);
+    [SerializeField] private Vector2 worldBounds = new Vector2(27f, 19.5f);
 
-    [Header("Offspring Settings")]
-    [SerializeField] private bool enableMutation = true;
-    [SerializeField] private float mutationRate = 0.1f;
-    [SerializeField] private float mutationAmount = 0.2f;
+    // ADD THIS - Direct reference to config
+    [Header("Age Configuration")]
+    [SerializeField] private AgentLifespanConfig lifespanConfig;
 
+    // Your existing fields...
     [Header("Statistics")]
     [SerializeField] private int totalAgentsBorn = 0;
     [SerializeField] private int totalAgentsDied = 0;
     [SerializeField] private int highestGeneration = 1;
 
-    // Add properties to expose statistics
+    // Properties remain the same...
     public int TotalAgentsBorn => totalAgentsBorn;
     public int TotalAgentsDied => totalAgentsDied;
     public int HighestGeneration => highestGeneration;
 
     void Start()
     {
+        // Validate config
+        if (lifespanConfig == null)
+        {
+            Debug.LogError("AgentLifespanConfig not assigned to AgentSpawner! Using default values.");
+        }
+
         SpawnInitialAgents();
     }
 
@@ -33,11 +39,33 @@ public class AgentSpawner : MonoBehaviour
     {
         for (int i = 0; i < initialAgentCount; i++)
         {
-            SpawnAgent();
+            GameObject agent = SpawnAgent();
+
+            // UPDATED - Configure initial age
+            ConfigureInitialAgentAge(agent);
         }
 
         totalAgentsBorn = initialAgentCount;
         Debug.Log($"Spawned {initialAgentCount} agents");
+    }
+
+    /// <summary>
+    /// Configure age for newly spawned initial agents
+    /// </summary>
+    private void ConfigureInitialAgentAge(GameObject agent)
+    {
+        if (lifespanConfig == null) return;
+
+        var ageSystem = agent.GetComponent<AgeSystem>();
+        if (ageSystem != null)
+        {
+            float maxAge = lifespanConfig.GetRandomMaxAge();
+            float maturityAge = lifespanConfig.GetRandomMaturityAge();
+
+            ageSystem.SetAgeValues(maxAge, maturityAge);
+
+            Debug.Log($"Initial agent {agent.name}: maxAge={maxAge:F1}, maturityAge={maturityAge:F1}");
+        }
     }
 
     /// <summary>
@@ -56,7 +84,15 @@ public class AgentSpawner : MonoBehaviour
     {
         GameObject agent = Instantiate(agentPrefab, position, Quaternion.identity);
         totalAgentsBorn++;
-
+        StatisticsManager.Instance.ReportAgentBorn();
+        if (SimulationDebugManager.Instance != null)
+        {
+            var agentController = agent.GetComponent<AgentController>();
+            if (agentController != null)
+            {
+                SimulationDebugManager.Instance.OnAgentSpawned(agentController);
+            }
+        }
         return agent;
     }
 
@@ -109,14 +145,20 @@ public class AgentSpawner : MonoBehaviour
                 // Update age system from genetics
                 AgeSystem ageSystem = offspringAgent.GetAgeSystem();
                 if (ageSystem != null)
-                {
-                    float deathAge = offspringGenetics.GetTraitValue(Genome.DEATH_AGE, 70f);
+                    
+                {   
+                    float deathAge = offspringGenetics.GetTraitValue(Genome.DEATH_AGE, 140f);
                     float pubertyAge = offspringGenetics.GetTraitValue(Genome.PUBERTY_AGE, 20f);
+                    if (lifespanConfig != null)
+                    {
+                        deathAge =lifespanConfig.GetRandomMaxAge();
+                        pubertyAge = lifespanConfig.GetRandomMaturityAge();
+                    }
                     ageSystem.SetAgeValues(deathAge, pubertyAge);
                 }
             }
         }
-
+        SimpleAgeIntegration.SetupOffspringAge(offspring, parent1, parent2);
         Debug.Log($"Spawned offspring from {parent1.name} and {(parent2 != null ? parent2.name : "unknown")}");
         return offspring;
     }

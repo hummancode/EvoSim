@@ -1,11 +1,11 @@
 using UnityEngine;
 using System;
 
-public class AgeSystem : MonoBehaviour, IAgeSystem
+public class AgeSystem : MonoBehaviour, IAgeSystem, IMaturityProvider
 {
     [Header("Age Settings")]
     [SerializeField] private float age = 0f;
-    [SerializeField] private float maxAge = 70f;
+    [SerializeField] private float maxAge = 140f;
     [SerializeField] private float maturityAge = 20f;
 
     [Header("State")]
@@ -23,7 +23,7 @@ public class AgeSystem : MonoBehaviour, IAgeSystem
     public float Age => age;
     public float MaxAge => maxAge;
     public bool IsMature => isMature;
-
+    public bool CanReproduce => IsMature;
     // Initialization method for dependency injection
     public void Initialize(DeathSystem deathSystem, GeneticsSystem geneticsSystem)
     {

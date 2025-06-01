@@ -13,7 +13,7 @@ public class GameSpeedController : MonoBehaviour
     [Header("UI References")]
     [SerializeField] private Slider speedSlider;
     [SerializeField] private TextMeshProUGUI speedText;
-
+    private float originalFixedDeltaTime;
     void Start()
     {
         // Configure the slider
@@ -40,7 +40,7 @@ public class GameSpeedController : MonoBehaviour
             // Add listener for value changes
             speedSlider.onValueChanged.AddListener(OnSpeedSliderChanged);
         }
-
+        originalFixedDeltaTime = Time.fixedDeltaTime; // Store original value
         // Set initial game speed
         SetGameSpeed(defaultSpeed);
     }
@@ -86,10 +86,26 @@ public class GameSpeedController : MonoBehaviour
     // Set game speed to specific value
     public void SetGameSpeed(float speed)
     {
-        // Apply speed to time scale
+        // CRITICAL FIX: Unity Editor limits Time.timeScale to 100
+#if UNITY_EDITOR
+        speed = Mathf.Clamp(speed, minSpeed, 100f);
+#else
+    speed = Mathf.Clamp(speed, minSpeed, maxSpeed);
+#endif
+
         Time.timeScale = speed;
 
-        // Update UI text if available
+        // Add the physics fix we discussed earlier
+        if (originalFixedDeltaTime > 0)
+        {
+            Time.fixedDeltaTime = originalFixedDeltaTime * Time.timeScale;
+
+            if (Time.fixedDeltaTime < 0.001f)
+            {
+                Time.fixedDeltaTime = 0.001f;
+            }
+        }
+
         if (speedText != null)
         {
             speedText.text = $"Speed: {speed:F1}x";

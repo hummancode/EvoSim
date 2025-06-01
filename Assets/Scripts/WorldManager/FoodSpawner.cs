@@ -5,26 +5,39 @@ public class FoodSpawner : MonoBehaviour
     [Header("Prefab Settings")]
     [SerializeField] private GameObject foodPrefab;
 
-    [Header("Spawn Settings")]
+    [Header("Spawn Settings - Rate Based")]
     [SerializeField] private int initialFoodCount = 150;
-    [SerializeField] private float spawnInterval = 2.0f;
+    [SerializeField] private float foodPerSecond = 0.5f; // 0.5 food per second = 1 food every 2 seconds
     [SerializeField] private Vector2 worldBounds = new Vector2(17f, 9.5f);
 
-    private float lastSpawnTime;
+    // Rate-based accumulator
+    private float spawnAccumulator = 0f;
+    private float lastUpdateTime = 0f;
 
     void Start()
     {
-        // Spawn initial food
         SpawnInitialFood();
+        lastUpdateTime = Time.time;
     }
 
     void Update()
     {
-        // Periodically spawn more food
-        if (Time.time - lastSpawnTime > spawnInterval)
+        // Calculate time delta since last update
+        float currentTime = Time.time;
+        float deltaTime = currentTime - lastUpdateTime;
+        lastUpdateTime = currentTime;
+
+        // Accumulate spawn "debt" based on food per second rate
+        spawnAccumulator += foodPerSecond * deltaTime;
+
+        // Spawn food for each accumulated unit
+        while (spawnAccumulator >= 1f)
         {
             SpawnFood();
-            lastSpawnTime = Time.time;
+            spawnAccumulator -= 1f;
+
+            // Debug log every spawn
+            //Debug.Log($"SPAWN: Time={Time.time:F2}, Rate={foodPerSecond}/s, Speed={Time.timeScale:F1}x, Accumulator={spawnAccumulator:F3}");
         }
     }
 
@@ -34,20 +47,20 @@ public class FoodSpawner : MonoBehaviour
         {
             SpawnFood();
         }
-
-        Debug.Log($"Spawned {initialFoodCount} food items");
+        Debug.Log($"Spawned {initialFoodCount} initial food items");
     }
 
     private void SpawnFood()
     {
-        // Get random position within world bounds
         Vector3 position = GetRandomPosition();
-
-        // Spawn the food
         Instantiate(foodPrefab, position, Quaternion.identity);
 
-        // Update last spawn time
-        lastSpawnTime = Time.time;
+        // Optional: Report food count
+        int currentFoodCount = FindObjectsOfType<Food>().Length;
+        if (StatisticsManager.Instance != null)
+        {
+            StatisticsManager.Instance.ReportFoodCount(currentFoodCount);
+        }
     }
 
     private Vector3 GetRandomPosition()
@@ -57,5 +70,32 @@ public class FoodSpawner : MonoBehaviour
             Random.Range(-worldBounds.y, worldBounds.y),
             0
         );
+    }
+
+    /// <summary>
+    /// Get current effective spawn rate (for debugging)
+    /// </summary>
+    public float GetCurrentSpawnRate()
+    {
+        return foodPerSecond;
+    }
+
+    /// <summary>
+    /// Calculate theoretical steady-state food count
+    /// </summary>
+    public float GetTheoreticalFoodCount()
+    {
+        // With current food lifespan of 230 seconds and rate of foodPerSecond:
+        // Steady state = lifespan * spawn_rate = 230 * foodPerSecond
+        return 230f * foodPerSecond;
+    }
+
+    /// <summary>
+    /// Set new spawn rate at runtime
+    /// </summary>
+    public void SetSpawnRate(float newFoodPerSecond)
+    {
+        foodPerSecond = Mathf.Max(0f, newFoodPerSecond);
+        Debug.Log($"Food spawn rate changed to {foodPerSecond} food/second");
     }
 }

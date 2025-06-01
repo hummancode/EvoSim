@@ -27,11 +27,46 @@ public class MatingProcess
     /// </summary>
     public bool CanProduceOffspring()
     {
-        // Check if both agents exist and have enough energy
-        return Initiator != null &&
-               Partner != null &&
-               Initiator.EnergySystem.HasEnoughEnergyForMating &&
-               Partner.EnergySystem.HasEnoughEnergyForMating;
+        try
+        {
+            // CRITICAL FIX: Check if agents still exist
+            if (Initiator == null || Partner == null)
+                return false;
+
+            // Check if agent adapters are still valid
+            if (Initiator is AgentAdapter initiatorAdapter && !IsAgentValid(initiatorAdapter))
+                return false;
+
+            if (Partner is AgentAdapter partnerAdapter && !IsAgentValid(partnerAdapter))
+                return false;
+
+            // Check energy systems exist and have enough energy
+            var initiatorEnergy = Initiator.EnergySystem;
+            var partnerEnergy = Partner.EnergySystem;
+
+            if (initiatorEnergy == null || partnerEnergy == null)
+                return false;
+
+            return initiatorEnergy.HasEnoughEnergyForMating &&
+                   partnerEnergy.HasEnoughEnergyForMating;
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogWarning($"Error in CanProduceOffspring: {e.Message}");
+            return false;
+        }
+    }
+
+    private bool IsAgentValid(AgentAdapter adapter)
+    {
+        try
+        {
+            return adapter != null && adapter.GameObject != null;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     /// <summary>

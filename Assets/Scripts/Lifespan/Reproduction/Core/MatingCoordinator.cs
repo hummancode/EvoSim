@@ -121,36 +121,47 @@ public class MatingCoordinator : MonoBehaviour
         // Default duration if config not found
         float matingDuration = config != null ? config.matingDuration : 10f;
 
-        // Wait for mating duration
-        yield return new WaitForSeconds(matingDuration);
+        // FIXED: Use scaled time tracking instead of real time
+        float startTime = Time.time;  // This respects timeScale
+        float targetEndTime = startTime + matingDuration;
 
-        // Check if offspring can be produced
+        // Frame-based waiting that respects timeScale
+        while (Time.time < targetEndTime)
+        {
+            // Optional: Add validation check here
+            if (!process.CanProduceOffspring())
+            {
+                Debug.Log("Mating interrupted - conditions no longer met");
+                break;
+            }
+
+            yield return null; // Wait one frame
+        }
+
+        // Rest of your code stays the same...
         bool canProduceOffspring = process.CanProduceOffspring();
 
         if (canProduceOffspring)
         {
             Debug.Log("Mating successful - producing offspring");
 
-            // Calculate offspring position
             Vector2 variance = config != null ? config.offspringPositionVariance : new Vector2(0.5f, 0.5f);
             Vector3 offspringPosition = process.CalculateOffspringPosition(variance);
 
-            // Consume energy from both agents
             float energyCost = config != null ? config.energyCost : 20f;
             process.Initiator.EnergySystem.ConsumeEnergy(energyCost);
             process.Partner.EnergySystem.ConsumeEnergy(energyCost);
 
-            // Get required objects for the command
             GameObject initiatorObj = (process.Initiator as AgentAdapter)?.GameObject;
             GameObject partnerObj = (process.Partner as AgentAdapter)?.GameObject;
             AgentSpawner spawner = FindObjectOfType<AgentSpawner>();
 
-            // Create and execute offspring command
             ICommand createOffspringCommand = new CreateOffspringCommand(
                 initiatorObj,
                 partnerObj,
                 offspringPosition,
-                spawner
+                spawner,
+                Random.Range(1, 4)
             );
 
             CommandDispatcher.Instance.ExecuteCommand(createOffspringCommand);
@@ -160,11 +171,10 @@ public class MatingCoordinator : MonoBehaviour
             Debug.Log("Mating failed - conditions no longer met");
         }
 
-        // Create commands to end mating for both agents
+        // End mating commands
         ICommand endInitiatorMatingCommand = new EndMatingCommand(process.Initiator);
         ICommand endPartnerMatingCommand = new EndMatingCommand(process.Partner);
 
-        // Execute the commands
         CommandDispatcher.Instance.ExecuteCommand(endInitiatorMatingCommand);
         CommandDispatcher.Instance.ExecuteCommand(endPartnerMatingCommand);
 
@@ -173,10 +183,8 @@ public class MatingCoordinator : MonoBehaviour
         matingAgents.Remove(process.Partner);
         activeProcesses.Remove(process);
 
-        // Mark as completed
         process.Complete();
     }
-
     /// <summary>
     /// Ensures consistent initiator selection
     /// </summary>

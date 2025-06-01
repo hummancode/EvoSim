@@ -14,7 +14,7 @@ public class Food : MonoBehaviour, IEdible
 {
     [Header("Food Properties")]
     [SerializeField] private float nutritionalValue = 20.0f;
-    [SerializeField] private float lifespanSeconds = 130.0f;
+    [SerializeField] private float lifespanSeconds = 230.0f;
 
     private float spawnTime;
 

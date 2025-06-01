@@ -75,7 +75,7 @@ public class AgentController : MonoBehaviour
         // Create managers (existing code)
         componentProvider = new AgentComponentProvider(this);
         contextBuilder = new AgentContextBuilder(this, componentProvider);
-        behaviorManager = new BehaviorManager(this, behaviorUpdateInterval);
+        behaviorManager = new SmartBehaviorManager(this, behaviorUpdateInterval);
         eventManager = new AgentEventManager(this, componentProvider);
 
         movementSystem = componentProvider.GetMovementSystem();
@@ -101,6 +101,7 @@ public class AgentController : MonoBehaviour
 
         // Start with wandering behavior
         behaviorManager.SetInitialBehavior(context);
+        SimpleAgeIntegration.AddAgeSpriteSystem(gameObject);
     }
 
     // Existing methods...

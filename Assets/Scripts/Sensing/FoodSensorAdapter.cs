@@ -12,7 +12,9 @@ public class FoodSensorAdapter : ISensorCapability
     public Vector3? GetTargetPosition()
     {
         IEdible edible = sensorSystem.GetNearestEdible();
-        if (edible != null && edible is MonoBehaviour mb)
+
+        // CRITICAL FIX: Check if the object still exists
+        if (edible != null && edible is MonoBehaviour mb && mb != null)
         {
             return mb.transform.position;
         }
@@ -21,11 +23,18 @@ public class FoodSensorAdapter : ISensorCapability
 
     public IEdible GetTargetObject()
     {
-        return sensorSystem.GetNearestEdible();
+        IEdible edible = sensorSystem.GetNearestEdible();
+
+        // CRITICAL FIX: Validate the object still exists
+        if (edible != null && edible is MonoBehaviour mb && mb != null)
+        {
+            return edible;
+        }
+        return null;
     }
 
     public bool HasTarget()
     {
-        return sensorSystem.GetNearestEdible() != null;
+        return GetTargetObject() != null;
     }
 }

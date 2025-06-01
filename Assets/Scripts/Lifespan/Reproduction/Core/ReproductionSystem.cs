@@ -13,28 +13,137 @@ public class ReproductionSystem : MonoBehaviour, IReproductionSystem
     private IEnergyProvider energyProvider;
     private IAgent selfAgent;
 
+    // NEW - Partner monitoring
+    private float lastPartnerCheck = 0f;
+    private float partnerCheckInterval = 1f; // Check every second
+
     // State
     private MatingState matingState = new MatingState();
 
     // Events
-   
     public event Action<IAgent> OnMatingStarted;
     public event Action OnMatingCompleted;
 
     // Interface implementation
-    public bool CanMate => matingState.CanMateAgain(config?.matingCooldown ?? 30f) &&
+    public bool CanMate => matingState.CanMateAgain(config?.matingCooldown ?? 10f) &&
                           energyProvider != null &&
                           energyProvider.HasEnoughEnergyForMating;
 
     public bool IsMating => matingState.IsMating;
 
-    public float MatingProximity => config?.matingProximity ?? 1.0f;
+    public float MatingProximity => config?.matingProximity ?? 0.4f;
 
     public float LastMatingTime => matingState.LastMatingTime;
 
+    void Awake()
+    {
+        // AUTO-LOAD CONFIG - Try multiple methods
+        LoadConfiguration();
+    }
+
     /// <summary>
-    /// Initialize with required dependencies
+    /// Automatically loads reproduction configuration
     /// </summary>
+    private void LoadConfiguration()
+    {
+        if (config != null)
+        {
+            Debug.Log("ReproductionConfig already assigned in inspector");
+            return; // Already assigned in inspector
+        }
+
+        // Method 1: Load from Resources folder
+        // Place your config in Assets/Resources/Configs/
+        config = Resources.Load<ReproductionConfig>("Configs/ReproductionConfig");
+
+        if (config != null)
+        {
+            Debug.Log("Loaded ReproductionConfig from Resources");
+            return;
+        }
+
+        // Method 2: Find the first ReproductionConfig in the project
+        config = FindConfigInProject();
+
+        if (config != null)
+        {
+            Debug.Log("Found ReproductionConfig in project assets");
+            return;
+        }
+
+        // Method 3: Load from a specific path using Resources
+        config = Resources.Load<ReproductionConfig>("ReproductionConfig");
+
+        if (config != null)
+        {
+            Debug.Log("Loaded ReproductionConfig from Resources root");
+            return;
+        }
+
+        // Method 4: Create default config if none found
+        Debug.LogWarning("No ReproductionConfig found, creating default configuration");
+        config = CreateDefaultConfig();
+    }
+
+    /// <summary>
+    /// Finds ReproductionConfig asset anywhere in the project
+    /// </summary>
+    private ReproductionConfig FindConfigInProject()
+    {
+#if UNITY_EDITOR
+        // This only works in the editor
+        string[] guids = UnityEditor.AssetDatabase.FindAssets("t:ReproductionConfig");
+
+        if (guids.Length > 0)
+        {
+            string path = UnityEditor.AssetDatabase.GUIDToAssetPath(guids[0]);
+            return UnityEditor.AssetDatabase.LoadAssetAtPath<ReproductionConfig>(path);
+        }
+#endif
+        return null;
+    }
+
+    /// <summary>
+    /// Creates a default configuration at runtime
+    /// </summary>
+    private ReproductionConfig CreateDefaultConfig()
+    {
+        var defaultConfig = ScriptableObject.CreateInstance<ReproductionConfig>();
+
+        // Set default values
+        defaultConfig.matingProximity = 1.0f;
+        defaultConfig.matingDuration = 10f;
+        defaultConfig.matingCooldown = 30f;
+        defaultConfig.energyCost = 20f;
+        defaultConfig.offspringPositionVariance = new Vector2(0.5f, 0.5f);
+
+        return defaultConfig;
+    }
+
+    void Update()
+    {
+        if (IsMating && Time.time - lastPartnerCheck > partnerCheckInterval)
+        {
+            ValidateCurrentMating();
+            lastPartnerCheck = Time.time;
+        }
+    }
+
+    private void ValidateCurrentMating()
+    {
+        if (!IsMating) return;
+
+        // Check if partner is still valid
+        matingState.ValidatePartner();
+
+        // If mating ended due to invalid partner, notify
+        if (!IsMating)
+        {
+            Debug.Log($"{gameObject.name}: Mating ended due to invalid partner");
+            OnMatingCompleted?.Invoke();
+        }
+    }
+
     public void Initialize(IAgent self, IMateFinder finder, IEnergyProvider energy)
     {
         Debug.Log("ReproductionSystem.Initialize called");
@@ -48,11 +157,10 @@ public class ReproductionSystem : MonoBehaviour, IReproductionSystem
         mateFinder = finder;
         energyProvider = energy;
 
-        // Fallback if config is missing
+        // Ensure config is loaded
         if (config == null)
         {
-            Debug.LogWarning("ReproductionConfig not assigned, using default values");
-            config = ScriptableObject.CreateInstance<ReproductionConfig>();
+            LoadConfiguration();
         }
 
         Debug.Log("ReproductionSystem initialized successfully");
@@ -63,36 +171,55 @@ public class ReproductionSystem : MonoBehaviour, IReproductionSystem
     /// </summary>
     public bool CanMateWith(IAgent partner)
     {
-        // Check age maturity first
-        AgeSystem ageSystem = GetComponent<AgeSystem>();
-        if (ageSystem != null && !ageSystem.IsMature)
+        try
         {
-            return false;
-        }
+            // Check if partner is valid/alive first
+            if (partner == null) return false;
 
-        // Check partner age maturity
-        if (partner is AgentAdapter adapter && adapter.GameObject != null)
-        {
-            AgeSystem partnerAgeSystem = adapter.GameObject.GetComponent<AgeSystem>();
-            if (partnerAgeSystem != null && !partnerAgeSystem.IsMature)
+            if (partner is AgentAdapter adapter && !adapter.IsValid())
+            {
+                return false; // Partner is dead/destroyed
+            }
+
+            // Check self maturity
+            AgeSystem ageSystem = GetComponent<AgeSystem>();
+            if (ageSystem != null && !ageSystem.IsMature)
             {
                 return false;
             }
+
+            // Check partner maturity with safe access
+            if (partner is AgentAdapter partnerAdapter && partnerAdapter.IsValid())
+            {
+                AgeSystem partnerAgeSystem = partnerAdapter.GetComponentSafely<AgeSystem>();
+                if (partnerAgeSystem != null && !partnerAgeSystem.IsMature)
+                {
+                    return false;
+                }
+            }
+
+            // Rest of checks with safe access
+            if (!CanMate || energyProvider == null || !energyProvider.HasEnoughEnergyForMating)
+                return false;
+
+            // Safe partner system access
+            var partnerReproduction = partner.ReproductionSystem;
+            var partnerEnergy = partner.EnergySystem;
+
+            if (partnerReproduction == null || partnerEnergy == null)
+                return false;
+
+            if (!partnerReproduction.CanMate || !partnerEnergy.HasEnoughEnergyForMating)
+                return false;
+
+            float distance = mateFinder.GetDistanceTo(partner);
+            return distance <= config.matingProximity;
         }
-
-        // Rest of the existing checks
-        if (!CanMate || energyProvider == null || !energyProvider.HasEnoughEnergyForMating)
+        catch (System.Exception e)
+        {
+            Debug.LogWarning($"Exception in CanMateWith: {e.Message}");
             return false;
-
-        if (partner == null)
-            return false;
-
-        if (!partner.ReproductionSystem.CanMate ||
-            !partner.EnergySystem.HasEnoughEnergyForMating)
-            return false;
-
-        float distance = mateFinder.GetDistanceTo(partner);
-        return distance <= config.matingProximity;
+        }
     }
 
     /// <summary>
@@ -100,47 +227,61 @@ public class ReproductionSystem : MonoBehaviour, IReproductionSystem
     /// </summary>
     public void InitiateMating(IAgent partner)
     {
-        Debug.Log($"{gameObject.name}: InitiateMating called with partner: {(partner != null ? "valid" : "null")}");
-
-        // Validate we can mate
-        if (!CanMate)
+        try
         {
-            Debug.LogWarning($"{gameObject.name}: Cannot mate - CanMate is false");
-            return;
+            if (!CanMate)
+            {
+                Debug.LogWarning($"{gameObject.name}: Cannot mate - CanMate is false");
+                return;
+            }
+
+            // Validate partner before starting mating
+            if (partner == null || (partner is AgentAdapter adapter && !adapter.IsValid()))
+            {
+                Debug.LogWarning($"{gameObject.name}: Cannot mate - partner is invalid or dead");
+                return;
+            }
+
+            matingState.StartMating(partner);
+            OnMatingStarted?.Invoke(partner);
+
+            Debug.Log($"{gameObject.name}: Mating started with {GetPartnerName(partner)}");
         }
-
-        // Set mating state
-        matingState.StartMating(partner);
-
-        Debug.Log($"{gameObject.name}: Mating state set, IsMating: {IsMating}");
-
-        // Notify that mating has started
-        OnMatingStarted?.Invoke(partner);
-        Debug.Log($"{gameObject.name}: OnMatingStarted event invoked");
+        catch (System.Exception e)
+        {
+            Debug.LogError($"Exception in InitiateMating for {gameObject.name}: {e.Message}");
+        }
     }
 
     /// <summary>
-    /// Accepts a mating request from another agent (called on the accepting agent)
+    /// Accepts mating with a partner (called on the accepting agent)
     /// </summary>
     public void AcceptMating(IAgent partner)
     {
-        Debug.Log($"{gameObject.name}: AcceptMating called with partner: {(partner != null ? "valid" : "null")}");
-
-        // Validate we can mate
-        if (!CanMate)
+        try
         {
-            Debug.LogWarning($"{gameObject.name}: Cannot accept mating - CanMate is false");
-            return;
+            if (!CanMate)
+            {
+                Debug.LogWarning($"{gameObject.name}: Cannot accept mating - CanMate is false");
+                return;
+            }
+
+            // Validate partner before accepting mating
+            if (partner == null || (partner is AgentAdapter adapter && !adapter.IsValid()))
+            {
+                Debug.LogWarning($"{gameObject.name}: Cannot accept mating - partner is invalid or dead");
+                return;
+            }
+
+            matingState.StartMating(partner);
+            OnMatingStarted?.Invoke(partner);
+
+            Debug.Log($"{gameObject.name}: Accepted mating with {GetPartnerName(partner)}");
         }
-
-        // Set mating state
-        matingState.StartMating(partner);
-
-        Debug.Log($"{gameObject.name}: Mating state accepted, IsMating: {IsMating}");
-
-        // Notify that mating has started
-        OnMatingStarted?.Invoke(partner);
-        Debug.Log($"{gameObject.name}: OnMatingStarted event invoked for accepting agent");
+        catch (System.Exception e)
+        {
+            Debug.LogError($"Exception in AcceptMating for {gameObject.name}: {e.Message}");
+        }
     }
 
     /// <summary>
@@ -160,10 +301,6 @@ public class ReproductionSystem : MonoBehaviour, IReproductionSystem
     }
 
     /// <summary>
-    /// Requests the creation of an offspring at the specified position
-    /// </summary>
-  
-    /// <summary>
     /// Returns the config for external use
     /// </summary>
     public ReproductionConfig GetConfig()
@@ -180,8 +317,27 @@ public class ReproductionSystem : MonoBehaviour, IReproductionSystem
             Gizmos.DrawWireSphere(transform.position, config.matingProximity);
         }
     }
+
     public IAgent GetCurrentPartner()
     {
         return matingState.Partner;
+    }
+
+    /// <summary>
+    /// Safe helper method for getting partner name
+    /// </summary>
+    private string GetPartnerName(IAgent partner)
+    {
+        try
+        {
+            if (partner == null) return "null";
+            if (partner is AgentAdapter adapter && adapter.IsValid())
+                return adapter.GameObject.name;
+            return "destroyed";
+        }
+        catch
+        {
+            return "unknown";
+        }
     }
 }

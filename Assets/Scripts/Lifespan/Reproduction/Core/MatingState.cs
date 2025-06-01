@@ -36,4 +36,24 @@ public class MatingState
     {
         return !IsMating && Time.time - LastMatingTime >= cooldownDuration;
     }
+    public void ValidatePartner()
+    {
+        if (IsMating && !IsPartnerValid())
+        {
+            Debug.Log("Partner became invalid during mating, ending mating state");
+            EndMating();
+        }
+    }
+
+    public bool IsPartnerValid()
+    {
+        if (Partner == null) return false;
+
+        if (Partner is AgentAdapter adapter)
+        {
+            return adapter.IsValid(); // Use the new IsValid() method
+        }
+
+        return true;
+    }
 }

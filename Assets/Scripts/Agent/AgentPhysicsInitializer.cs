@@ -51,24 +51,23 @@ public class AgentPhysicsInitializer : MonoBehaviour
 
     private void InitializeRigidbody()
     {
-        // Get or add Rigidbody2D
         rb = GetComponent<Rigidbody2D>();
         if (rb == null)
         {
             rb = gameObject.AddComponent<Rigidbody2D>();
-            Debug.Log("Added Rigidbody2D to agent");
         }
 
-        // Configure Rigidbody2D
         rb.bodyType = bodyType;
         rb.gravityScale = disableGravity ? 0f : 1f;
         rb.drag = linearDrag;
-        rb.constraints = freezeRotation ?
-            RigidbodyConstraints2D.FreezeRotation :
-            RigidbodyConstraints2D.None;
-        rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
-    }
+        rb.constraints = freezeRotation ? RigidbodyConstraints2D.FreezeRotation : RigidbodyConstraints2D.None;
 
+        // CRITICAL: Use Continuous collision detection for high speeds
+        rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
+
+        // CRITICAL: Interpolate for smooth movement at high timescales
+        rb.interpolation = RigidbodyInterpolation2D.Interpolate;
+    }
     private void InitializeCollider()
     {
         // Check for existing colliders
