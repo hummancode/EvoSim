@@ -43,7 +43,7 @@ public class AgeLifeStageTracker : MonoBehaviour
         {
             currentStage = newStage;
             OnLifeStageChanged?.Invoke(currentStage);
-            Debug.Log($"{gameObject.name} entered {currentStage} stage at age {ageSystem.Age:F1}");
+            //Debug.Log($"{gameObject.name} entered {currentStage} stage at age {ageSystem.Age:F1}");
         }
     }
 

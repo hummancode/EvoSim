@@ -15,7 +15,7 @@ public class EnergySystem : MonoBehaviour, IEnergyProvider
 
     public bool IsDead => currentEnergy <= 0f;
     public float EnergyPercent => currentEnergy / maxEnergy;
-
+    public float cEnergy => currentEnergy;
     // Event for death
     public System.Action OnDeath;
 

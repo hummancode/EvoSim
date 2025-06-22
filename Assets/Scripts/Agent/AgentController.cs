@@ -6,7 +6,7 @@ public class AgentController : MonoBehaviour
     [SerializeField] private int generation = 1;
 
     [Header("Behavior")]
-    [SerializeField] private float behaviorUpdateInterval = 0.2f;
+    [SerializeField] private float behaviorUpdateInterval = 1f;
     [SerializeField] private string currentBehaviorName;
 
     // Components
@@ -32,7 +32,9 @@ public class AgentController : MonoBehaviour
     private AgentIdentity identity;
     private GeneticsSystem geneticsSystem;
     private AgeSystem ageSystem;
-
+    [Header("Central Management")]
+    [SerializeField] private bool isCentrallyManaged = false;
+    [SerializeField] private bool enableCentralManagement = true; // Toggle for testing
     // Properties
     public int Generation
     {
@@ -47,10 +49,13 @@ public class AgentController : MonoBehaviour
     public int AgentId => identity != null ? identity.AgentId : 0;
 
     void Awake()
-    {
+    {   
         // Set the agent to the Agent layer
         gameObject.layer = LayerMask.NameToLayer("Agent");
+        VisualSystemIntegration.AddAgentVisualSystem(gameObject);
 
+
+        //SimpleFluffGeneHelper.SetupSimpleFluff(gameObject);
         // Get identity component
         identity = GetComponent<AgentIdentity>();
         if (identity == null)
@@ -102,6 +107,11 @@ public class AgentController : MonoBehaviour
         // Start with wandering behavior
         behaviorManager.SetInitialBehavior(context);
         SimpleAgeIntegration.AddAgeSpriteSystem(gameObject);
+        if (enableCentralManagement && CentralAgentManager.Instance != null)
+        {
+            CentralAgentManager.Instance.RegisterAgent(this);
+            isCentrallyManaged = true;
+        }
     }
 
     // Existing methods...
@@ -122,12 +132,21 @@ public class AgentController : MonoBehaviour
     {
         // Clean up subscriptions
         eventManager.UnsubscribeFromEvents();
+        if (CentralAgentManager.Instance != null)
+        {
+            CentralAgentManager.Instance.UnregisterAgent(this);
+        }
     }
 
     void Update()
     {
         // Update behavior through behavior manager
-        behaviorManager.UpdateBehavior(context);
+        if (!isCentrallyManaged)
+        {
+            // Your existing update logic
+            behaviorManager.UpdateBehavior(context);
+        }
+
     }
 
     // Public interface
@@ -163,5 +182,25 @@ public class AgentController : MonoBehaviour
     public void ForceMateSeek()
     {
         behaviorManager.ForceBehavior<MateSeekingBehavior>(context);
+    }
+    public IBehaviorManager GetBehaviorManager()
+    {
+        return behaviorManager;
+    }
+
+    public void SetCentrallyManaged(bool managed)
+    {
+        isCentrallyManaged = managed;
+    }
+
+    public bool IsCentrallyManaged()
+    {
+        return isCentrallyManaged;
+    }
+
+    // Force a behavior update (called by central manager)
+    public void ForceUpdate()
+    {
+        behaviorManager?.UpdateBehavior(context);
     }
 }

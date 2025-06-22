@@ -49,7 +49,7 @@ public class AgeSystem : MonoBehaviour, IAgeSystem, IMaturityProvider
         if (!isMature && age >= maturityAge)
         {
             isMature = true;
-            Debug.Log($"Agent {gameObject.name} reached maturity at age {age}");
+            //Debug.Log($"Agent {gameObject.name} reached maturity at age {age}");
             OnMatured?.Invoke();
         }
 

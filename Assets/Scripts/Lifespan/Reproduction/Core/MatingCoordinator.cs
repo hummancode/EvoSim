@@ -5,6 +5,7 @@ using UnityEngine;
 
 /// <summary>
 /// Singleton coordinator for all mating processes in the simulation
+/// FIXED: High-speed reliability improvements
 /// </summary>
 public class MatingCoordinator : MonoBehaviour
 {
@@ -38,6 +39,12 @@ public class MatingCoordinator : MonoBehaviour
     // Set of agents currently involved in mating
     private HashSet<IAgent> matingAgents = new HashSet<IAgent>();
 
+    // HIGH-SPEED FIX: Add proximity-based instant mating for extreme speeds
+    [Header("High-Speed Settings")]
+    [SerializeField] private float emergencyMatingDistance = 2.5f;
+    [SerializeField] private bool enableEmergencyMating = true;
+    [SerializeField] private bool debugHighSpeed = false;
+
     private void Awake()
     {
         // Singleton pattern setup
@@ -54,20 +61,33 @@ public class MatingCoordinator : MonoBehaviour
 
     /// <summary>
     /// Register a new mating process between two agents
+    /// FIXED: High-speed reliability improvements
     /// </summary>
     public bool RegisterMating(IAgent initiator, IAgent partner)
     {
+        // HIGH-SPEED FIX: Emergency mating for very high speeds
+        if (Time.timeScale > 75f && enableEmergencyMating)
+        {
+            return HandleEmergencyMating(initiator, partner);
+        }
+
         // Ensure correct initiator order
         if (!EnsureCorrectInitiator(ref initiator, ref partner))
         {
-            // Already registered or invalid order
             return false;
         }
 
         // Check if either agent is already mating
         if (IsAgentMating(initiator) || IsAgentMating(partner))
         {
-            Debug.Log("Can't register mating: One or both agents are already mating");
+            if (debugHighSpeed) Debug.Log("Can't register mating: One or both agents are already mating");
+            return false;
+        }
+
+        // HIGH-SPEED FIX: Validate agents more thoroughly
+        if (!ValidateAgentsForMating(initiator, partner))
+        {
+            if (debugHighSpeed) Debug.Log("Can't register mating: Agent validation failed");
             return false;
         }
 
@@ -80,14 +100,140 @@ public class MatingCoordinator : MonoBehaviour
         matingAgents.Add(partner);
 
         // Notify agents
-        initiator.ReproductionSystem.InitiateMating(partner);
-        partner.ReproductionSystem.AcceptMating(initiator);
+        try
+        {
+            initiator.ReproductionSystem.InitiateMating(partner);
+            partner.ReproductionSystem.AcceptMating(initiator);
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"Error notifying agents of mating: {e.Message}");
+            // Clean up on failure
+            matingAgents.Remove(initiator);
+            matingAgents.Remove(partner);
+            activeProcesses.Remove(process);
+            return false;
+        }
 
         // Start mating coroutine
-        StartCoroutine(MatingProcessCoroutine(process));
+        StartCoroutine(HighSpeedMatingProcessCoroutine(process));
 
-        Debug.Log($"Registered mating between {GetAgentName(initiator)} and {GetAgentName(partner)}");
+        if (debugHighSpeed)
+            Debug.Log($"Registered mating between {GetAgentName(initiator)} and {GetAgentName(partner)} at {Time.timeScale:F0}x speed");
+
         return true;
+    }
+
+    /// <summary>
+    /// HIGH-SPEED FIX: Emergency mating for extreme speeds (>75x)
+    /// Skips duration, creates offspring immediately
+    /// </summary>
+    private bool HandleEmergencyMating(IAgent initiator, IAgent partner)
+    {
+        if (!ValidateAgentsForMating(initiator, partner))
+            return false;
+
+        if (IsAgentMating(initiator) || IsAgentMating(partner))
+            return false;
+
+        // Check if agents are reasonably close for emergency mating
+        float distance = Vector3.Distance(initiator.Position, partner.Position);
+        if (distance > emergencyMatingDistance)
+        {
+            if (debugHighSpeed)
+                Debug.Log($"Emergency mating failed: distance {distance:F1} > {emergencyMatingDistance}");
+            return false;
+        }
+
+        if (debugHighSpeed)
+            Debug.Log($"EMERGENCY MATING at {Time.timeScale:F0}x speed: {GetAgentName(initiator)} + {GetAgentName(partner)}");
+
+        // Immediate energy cost
+        ReproductionConfig config = GetReproductionConfig(initiator);
+        float energyCost = config != null ? config.energyCost : 20f;
+
+        initiator.EnergySystem.ConsumeEnergy(energyCost);
+        partner.EnergySystem.ConsumeEnergy(energyCost);
+
+        // Create offspring immediately
+        CreateOffspringImmediate(initiator, partner, config);
+
+        // Brief mating state (just for 1 frame)
+        StartCoroutine(BriefMatingState(initiator, partner));
+
+        return true;
+    }
+
+    /// <summary>
+    /// HIGH-SPEED FIX: Brief mating state for emergency mating
+    /// </summary>
+    private IEnumerator BriefMatingState(IAgent initiator, IAgent partner)
+    {
+        // Set mating state
+        matingAgents.Add(initiator);
+        matingAgents.Add(partner);
+
+        try
+        {
+            initiator.ReproductionSystem.InitiateMating(partner);
+            partner.ReproductionSystem.AcceptMating(initiator);
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"Error in brief mating state: {e.Message}");
+        }
+
+        // Wait just 1 frame
+        yield return null;
+
+        // End mating immediately
+        EndMatingForAgents(initiator, partner);
+        matingAgents.Remove(initiator);
+        matingAgents.Remove(partner);
+    }
+
+    /// <summary>
+    /// HIGH-SPEED FIX: Improved agent validation
+    /// </summary>
+    private bool ValidateAgentsForMating(IAgent initiator, IAgent partner)
+    {
+        try
+        {
+            // Null checks
+            if (initiator == null || partner == null)
+                return false;
+
+            // Adapter validity checks
+            if (initiator is AgentAdapter ia && !ia.IsValid())
+                return false;
+
+            if (partner is AgentAdapter pa && !pa.IsValid())
+                return false;
+
+            // System availability checks
+            var initReproduction = initiator.ReproductionSystem;
+            var partnerReproduction = partner.ReproductionSystem;
+            var initEnergy = initiator.EnergySystem;
+            var partnerEnergy = partner.EnergySystem;
+
+            if (initReproduction == null || partnerReproduction == null ||
+                initEnergy == null || partnerEnergy == null)
+                return false;
+
+            // Capability checks
+            if (!initReproduction.CanMate || !partnerReproduction.CanMate)
+                return false;
+
+            if (!initEnergy.HasEnoughEnergyForMating || !partnerEnergy.HasEnoughEnergyForMating)
+                return false;
+
+            return true;
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogWarning($"Error validating agents for mating: {e.Message}");
+            return false;
+        }
     }
 
     /// <summary>
@@ -99,84 +245,85 @@ public class MatingCoordinator : MonoBehaviour
     }
 
     /// <summary>
-    /// Coroutine to handle mating duration and outcome
+    /// HIGH-SPEED OPTIMIZED: Mating process coroutine with better validation
     /// </summary>
-    // In MatingCoordinator.cs
-    /// <summary>
-    /// Coroutine to handle mating duration and outcome
-    /// </summary>
-    private IEnumerator MatingProcessCoroutine(MatingProcess process)
+    private IEnumerator HighSpeedMatingProcessCoroutine(MatingProcess process)
     {
         // Get reproduction config from initiator
-        ReproductionConfig config = null;
-        if (process.Initiator is AgentAdapter initiatorAdapter && initiatorAdapter.GameObject != null)
-        {
-            ReproductionSystem reproSystem = initiatorAdapter.GameObject.GetComponent<ReproductionSystem>();
-            if (reproSystem != null)
-            {
-                config = reproSystem.GetConfig();
-            }
-        }
-
-        // Default duration if config not found
+        ReproductionConfig config = GetReproductionConfig(process.Initiator);
         float matingDuration = config != null ? config.matingDuration : 10f;
 
-        // FIXED: Use scaled time tracking instead of real time
-        float startTime = Time.time;  // This respects timeScale
-        float targetEndTime = startTime + matingDuration;
+        // HIGH-SPEED FIX: More frequent validation at high speeds
+        float validationInterval = CalculateValidationInterval();
+        float nextValidation = Time.time;
 
-        // Frame-based waiting that respects timeScale
-        while (Time.time < targetEndTime)
+        float endTime = Time.time + matingDuration;
+
+        // Main mating loop with adaptive validation
+        while (Time.time < endTime)
         {
-            // Optional: Add validation check here
-            if (!process.CanProduceOffspring())
+            // Validate agents periodically (more often at high speeds)
+            if (Time.time >= nextValidation)
             {
-                Debug.Log("Mating interrupted - conditions no longer met");
-                break;
+                if (!process.CanProduceOffspring())
+                {
+                    if (debugHighSpeed)
+                        Debug.Log($"Mating interrupted at {Time.timeScale:F0}x speed - conditions no longer met");
+                    break;
+                }
+                nextValidation = Time.time + validationInterval;
             }
 
-            yield return null; // Wait one frame
+            yield return null; // This respects timeScale automatically
         }
 
-        // Rest of your code stays the same...
+        // Complete the mating process
+        CompleteMatingProcess(process, config);
+    }
+
+    /// <summary>
+    /// HIGH-SPEED FIX: Calculate validation interval based on time scale
+    /// </summary>
+    private float CalculateValidationInterval()
+    {
+        float timeScale = Time.timeScale;
+
+        if (timeScale > 50f)
+            return 0.05f; // Validate every 0.05 game seconds at very high speeds
+        else if (timeScale > 20f)
+            return 0.1f;  // Validate every 0.1 game seconds at high speeds
+        else
+            return 0.5f;  // Validate every 0.5 game seconds at normal speeds
+    }
+
+    /// <summary>
+    /// HIGH-SPEED FIX: Complete mating process with better error handling
+    /// </summary>
+    private void CompleteMatingProcess(MatingProcess process, ReproductionConfig config)
+    {
         bool canProduceOffspring = process.CanProduceOffspring();
 
         if (canProduceOffspring)
         {
-            Debug.Log("Mating successful - producing offspring");
+            if (debugHighSpeed)
+                Debug.Log($"Mating successful at {Time.timeScale:F0}x speed - producing offspring");
 
-            Vector2 variance = config != null ? config.offspringPositionVariance : new Vector2(0.5f, 0.5f);
-            Vector3 offspringPosition = process.CalculateOffspringPosition(variance);
-
+            // Apply energy cost
             float energyCost = config != null ? config.energyCost : 20f;
             process.Initiator.EnergySystem.ConsumeEnergy(energyCost);
             process.Partner.EnergySystem.ConsumeEnergy(energyCost);
 
-            GameObject initiatorObj = (process.Initiator as AgentAdapter)?.GameObject;
-            GameObject partnerObj = (process.Partner as AgentAdapter)?.GameObject;
-            AgentSpawner spawner = FindObjectOfType<AgentSpawner>();
-
-            ICommand createOffspringCommand = new CreateOffspringCommand(
-                initiatorObj,
-                partnerObj,
-                offspringPosition,
-                spawner,
-                Random.Range(1, 4)
-            );
-
-            CommandDispatcher.Instance.ExecuteCommand(createOffspringCommand);
+            // Create offspring
+            CreateOffspringImmediate(process.Initiator, process.Partner, config);
         }
         else
         {
-            Debug.Log("Mating failed - conditions no longer met");
+            if (debugHighSpeed)
+                Debug.Log($"Mating failed at {Time.timeScale:F0}x speed - conditions no longer met");
         }
 
-        // End mating commands
-        ICommand endInitiatorMatingCommand = new EndMatingCommand(process.Initiator);
-        ICommand endPartnerMatingCommand = new EndMatingCommand(process.Partner);
-
-        CommandDispatcher.Instance.ExecuteCommand(endInitiatorMatingCommand);
-        CommandDispatcher.Instance.ExecuteCommand(endPartnerMatingCommand);
+        // End mating for both agents
+        EndMatingForAgents(process.Initiator, process.Partner);
 
         // Remove from tracking
         matingAgents.Remove(process.Initiator);
@@ -185,6 +332,121 @@ public class MatingCoordinator : MonoBehaviour
 
         process.Complete();
     }
+
+    /// <summary>
+    /// HIGH-SPEED FIX: Immediate offspring creation to avoid command system delays
+    /// </summary>
+    private void CreateOffspringImmediate(IAgent initiator, IAgent partner, ReproductionConfig config)
+    {
+        try
+        {
+            Vector2 variance = config != null ? config.offspringPositionVariance : new Vector2(0.5f, 0.5f);
+            Vector3 offspringPosition = CalculateOffspringPosition(initiator, partner, variance);
+
+            GameObject initiatorObj = (initiator as AgentAdapter)?.GameObject;
+            GameObject partnerObj = (partner as AgentAdapter)?.GameObject;
+
+            if (initiatorObj == null || partnerObj == null)
+            {
+                Debug.LogError("Cannot create offspring - parent GameObjects are null");
+                return;
+            }
+
+            AgentSpawner spawner = FindObjectOfType<AgentSpawner>();
+            if (spawner == null)
+            {
+                Debug.LogError("No AgentSpawner found");
+                return;
+            }
+
+            // HIGH-SPEED FIX: Create multiple offspring at very high speeds for population balance
+            int offspringCount = Time.timeScale > 75f ? Random.Range(2, 4) : Random.Range(1, 3);
+
+            for (int i = 0; i < offspringCount; i++)
+            {
+                Vector3 position = offspringPosition + new Vector3(
+                    Random.Range(-variance.x, variance.x),
+                    Random.Range(-variance.y, variance.y),
+                    0f
+                );
+                spawner.SpawnOffspring(initiatorObj, partnerObj, position);
+            }
+
+            if (debugHighSpeed)
+                Debug.Log($"Created {offspringCount} offspring at {Time.timeScale:F0}x speed");
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"Error creating offspring: {e.Message}");
+        }
+    }
+
+    /// <summary>
+    /// HIGH-SPEED FIX: Safe agent mating state ending
+    /// </summary>
+    private void EndMatingForAgents(IAgent initiator, IAgent partner)
+    {
+        // End mating commands with error handling
+        try
+        {
+            if (initiator?.ReproductionSystem != null)
+            {
+                ICommand endInitiatorCommand = new EndMatingCommand(initiator);
+                CommandDispatcher.Instance.ExecuteCommand(endInitiatorCommand);
+            }
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogWarning($"Error ending mating for initiator: {e.Message}");
+        }
+
+        try
+        {
+            if (partner?.ReproductionSystem != null)
+            {
+                ICommand endPartnerCommand = new EndMatingCommand(partner);
+                CommandDispatcher.Instance.ExecuteCommand(endPartnerCommand);
+            }
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogWarning($"Error ending mating for partner: {e.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Calculate offspring position between two agents
+    /// </summary>
+    private Vector3 CalculateOffspringPosition(IAgent initiator, IAgent partner, Vector2 variance)
+    {
+        Vector3 midpoint = (initiator.Position + partner.Position) / 2f;
+        return midpoint + new Vector3(
+            Random.Range(-variance.x, variance.x),
+            Random.Range(-variance.y, variance.y),
+            0f
+        );
+    }
+
+    /// <summary>
+    /// Get reproduction config from an agent
+    /// </summary>
+    private ReproductionConfig GetReproductionConfig(IAgent agent)
+    {
+        try
+        {
+            if (agent is AgentAdapter adapter && adapter.IsValid())
+            {
+                ReproductionSystem reproSystem = adapter.GameObject.GetComponent<ReproductionSystem>();
+                return reproSystem?.GetConfig();
+            }
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogWarning($"Error getting reproduction config: {e.Message}");
+        }
+        return null;
+    }
+
     /// <summary>
     /// Ensures consistent initiator selection
     /// </summary>

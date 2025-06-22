@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using UnityEngine;
 
 public enum SaveLocation
@@ -393,4 +395,69 @@ public class SimulationSaveData
     public string simulationName;
     public string saveTimestamp;
     public StatisticsData statistics;
+}
+public class DeathAgeAnalyzer
+{
+    private List<DeathData> deathRecords;
+
+    public DeathAgeAnalyzer(List<DeathData> records)
+    {
+        deathRecords = records;
+    }
+
+    public Dictionary<string, float> GetDeathProbabilityByAge(float ageStep = 5f)
+    {
+        Dictionary<string, int> ageDeaths = new Dictionary<string, int>();
+        Dictionary<string, int> ageTotals = new Dictionary<string, int>();
+
+        // Count deaths in age bins
+        foreach (var death in deathRecords)
+        {
+            int ageBin = Mathf.FloorToInt(death.age / ageStep);
+            string ageRange = $"{ageBin * ageStep:F0}-{(ageBin + 1) * ageStep:F0}";
+
+            if (!ageDeaths.ContainsKey(ageRange))
+                ageDeaths[ageRange] = 0;
+
+            ageDeaths[ageRange]++;
+        }
+
+        // For probability calculation, we'd need total population in each age range
+        // This is simplified - in a real simulation you'd track living population by age
+        Dictionary<string, float> probabilities = new Dictionary<string, float>();
+
+        foreach (var ageRange in ageDeaths.Keys)
+        {
+            // Simplified probability calculation
+            // In reality, you'd need: deaths_in_age_range / total_population_in_age_range
+            float deathCount = ageDeaths[ageRange];
+            float totalInRange = deathCount * 2f; // Simplified assumption
+            probabilities[ageRange] = totalInRange > 0 ? deathCount / totalInRange : 0f;
+        }
+
+        return probabilities;
+    }
+
+    public Dictionary<string, List<float>> GetDeathCausesByAge(float ageStep = 10f)
+    {
+        Dictionary<string, List<float>> causesByAge = new Dictionary<string, List<float>>();
+
+        foreach (var death in deathRecords)
+        {
+            if (!causesByAge.ContainsKey(death.cause))
+                causesByAge[death.cause] = new List<float>();
+
+            causesByAge[death.cause].Add(death.age);
+        }
+
+        return causesByAge;
+    }
+
+    public float GetAverageDeathAgeForCause(string cause)
+    {
+        var causedDeaths = deathRecords.Where(d => d.cause == cause).ToList();
+        if (causedDeaths.Count == 0) return 0f;
+
+        return causedDeaths.Average(d => d.age);
+    }
 }

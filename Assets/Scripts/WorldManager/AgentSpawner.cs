@@ -1,38 +1,98 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 public class AgentSpawner : MonoBehaviour
 {
     [Header("Prefab Settings")]
     [SerializeField] private GameObject agentPrefab;
+    [SerializeField] private GameObject backupAgentPrefab; // Backup prefab
 
     [Header("Spawn Settings")]
     [SerializeField] private int initialAgentCount = 10;
     [SerializeField] private Vector2 worldBounds = new Vector2(27f, 19.5f);
 
-    // ADD THIS - Direct reference to config
     [Header("Age Configuration")]
     [SerializeField] private AgentLifespanConfig lifespanConfig;
 
-    // Your existing fields...
     [Header("Statistics")]
     [SerializeField] private int totalAgentsBorn = 0;
     [SerializeField] private int totalAgentsDied = 0;
     [SerializeField] private int highestGeneration = 1;
-
-    // Properties remain the same...
+    [Header("Organization")] // NEW - Just add this
+    [SerializeField] private Transform agentsFolder; // Drag folder here!
+    // Properties
     public int TotalAgentsBorn => totalAgentsBorn;
     public int TotalAgentsDied => totalAgentsDied;
     public int HighestGeneration => highestGeneration;
 
     void Start()
     {
-        // Validate config
+        Debug.Log("[AGENT] Test agent message");
+        Debug.Log("[FOOD] Test food message");
+        Debug.LogWarning("[REPRODUCTION] Test warning");
+        //Debug.LogError("[SPAWNING] Test error");
+        if (agentsFolder == null)
+        {
+            agentsFolder = CreateAgentsFolder();
+        }
+
+        // CRITICAL: Validate prefab before starting
+        if (!ValidateAgentPrefab())
+        {
+            Debug.LogError("AgentSpawner: No valid agent prefab available! Cannot spawn agents.");
+            return;
+        }
+
         if (lifespanConfig == null)
         {
-            Debug.LogError("AgentLifespanConfig not assigned to AgentSpawner! Using default values.");
+            Debug.LogWarning("AgentLifespanConfig not assigned to AgentSpawner! Using default values.");
         }
 
         SpawnInitialAgents();
+    }
+    private Transform CreateAgentsFolder()
+    {
+        GameObject folder = new GameObject("🤖 Agents");
+        return folder.transform;
+    }
+    /// <summary>
+    /// CRITICAL: Validates that we have a working agent prefab
+    /// </summary>
+    private bool ValidateAgentPrefab()
+    {
+        // Check primary prefab
+        if (agentPrefab != null)
+        {
+            Debug.Log($"Using primary agent prefab: {agentPrefab.name}");
+            return true;
+        }
+
+        // Try backup prefab
+        if (backupAgentPrefab != null)
+        {
+            Debug.LogWarning("Primary prefab is null, using backup agent prefab");
+            agentPrefab = backupAgentPrefab;
+            return true;
+        }
+
+        // Try to find a prefab in Resources
+        GameObject resourcesPrefab = Resources.Load<GameObject>("AgentPrefab");
+        if (resourcesPrefab != null)
+        {
+            Debug.LogWarning("Using agent prefab from Resources folder");
+            agentPrefab = resourcesPrefab;
+            return true;
+        }
+
+        // Last resort: try to find any AgentController in the scene as a template
+        AgentController existingAgent = FindObjectOfType<AgentController>();
+        if (existingAgent != null)
+        {
+            Debug.LogWarning("Creating prefab from existing agent in scene");
+            agentPrefab = existingAgent.gameObject;
+            return true;
+        }
+
+        return false;
     }
 
     private void SpawnInitialAgents()
@@ -40,21 +100,23 @@ public class AgentSpawner : MonoBehaviour
         for (int i = 0; i < initialAgentCount; i++)
         {
             GameObject agent = SpawnAgent();
-
-            // UPDATED - Configure initial age
-            ConfigureInitialAgentAge(agent);
+            if (agent != null)
+            {
+                ConfigureInitialAgentAge(agent);
+            }
+            else
+            {
+                Debug.LogError($"Failed to spawn initial agent {i}");
+            }
         }
 
         totalAgentsBorn = initialAgentCount;
-        Debug.Log($"Spawned {initialAgentCount} agents");
+        Debug.Log($"[AGENT] Spawned {initialAgentCount} initial agents");
     }
 
-    /// <summary>
-    /// Configure age for newly spawned initial agents
-    /// </summary>
     private void ConfigureInitialAgentAge(GameObject agent)
     {
-        if (lifespanConfig == null) return;
+        if (lifespanConfig == null || agent == null) return;
 
         var ageSystem = agent.GetComponent<AgeSystem>();
         if (ageSystem != null)
@@ -63,13 +125,12 @@ public class AgentSpawner : MonoBehaviour
             float maturityAge = lifespanConfig.GetRandomMaturityAge();
 
             ageSystem.SetAgeValues(maxAge, maturityAge);
-
             Debug.Log($"Initial agent {agent.name}: maxAge={maxAge:F1}, maturityAge={maturityAge:F1}");
         }
     }
 
     /// <summary>
-    /// Spawns a new agent at a random position
+    /// FIXED: Spawns a new agent with comprehensive error handling
     /// </summary>
     public GameObject SpawnAgent()
     {
@@ -78,46 +139,108 @@ public class AgentSpawner : MonoBehaviour
     }
 
     /// <summary>
-    /// Spawns a new agent at the specified position
+    /// FIXED: Spawns a new agent at the specified position with error handling
     /// </summary>
     public GameObject SpawnAgentAt(Vector3 position)
     {
-        GameObject agent = Instantiate(agentPrefab, position, Quaternion.identity);
-        totalAgentsBorn++;
-        StatisticsManager.Instance.ReportAgentBorn();
-        if (SimulationDebugManager.Instance != null)
+        if (agentPrefab == null)
         {
-            var agentController = agent.GetComponent<AgentController>();
-            if (agentController != null)
+            Debug.LogError("Cannot spawn agent: agentPrefab is null!");
+            if (!ValidateAgentPrefab())
             {
-                SimulationDebugManager.Instance.OnAgentSpawned(agentController);
+                return null;
             }
         }
-        return agent;
+
+        try
+        {
+            // SIMPLE CHANGE - Just add the parent parameter!
+            //GameObject agent = Instantiate(agentPrefab, position, Quaternion.identity, agentsFolder);
+            GameObject agent = AgentControllerVisualIntegration.SpawnAgentWithVisuals(agentPrefab, position, Quaternion.identity);
+
+            if (agent == null)
+            {
+                Debug.LogError("Instantiate returned null for agent prefab!");
+                return null;
+            }
+
+            // Your existing code stays the same...
+            totalAgentsBorn++;
+
+            if (StatisticsManager.Instance != null)
+            {
+                StatisticsManager.Instance.ReportAgentBorn();
+            }
+
+            if (SimulationDebugManager.Instance != null)
+            {
+                var agentController = agent.GetComponent<AgentController>();
+                if (agentController != null)
+                {
+                    SimulationDebugManager.Instance.OnAgentSpawned(agentController);
+                }
+            }
+
+            return agent;
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"Exception while spawning agent: {e.Message}");
+            return null;
+        }
     }
 
     /// <summary>
-    /// Spawns an offspring from two parent agents
+    /// FIXED: Spawns offspring with comprehensive error handling
     /// </summary>
     public GameObject SpawnOffspring(GameObject parent1, GameObject parent2, Vector3 position)
     {
-        Debug.Log($"SpawnOffspring called with parents: {parent1?.name}, {parent2?.name}");
+        //Debug.Log($"SpawnOffspring called with parents: {parent1?.name}, {parent2?.name}");
 
+        // CRITICAL: Validate inputs
         if (parent1 == null)
         {
-            Debug.LogError("Parent1 is null in SpawnOffspring");
+            Debug.LogError("Parent1 is null in SpawnOffspring - cannot proceed");
             return null;
         }
 
-        // Create the new agent
+        // Validate that parent1 still exists
+        try
+        {
+            string testName = parent1.name; // This will throw if destroyed
+        }
+        catch (MissingReferenceException)
+        {
+            Debug.LogError("Parent1 has been destroyed during mating process");
+            return null;
+        }
+
+        // Create the new agent with error handling
         GameObject offspring = SpawnAgentAt(position);
+        if (offspring == null)
+        {
+            Debug.LogError("Failed to spawn offspring - SpawnAgentAt returned null");
+            return null;
+        }
 
-        // Get components
-        AgentController parent1Agent = parent1.GetComponent<AgentController>();
-        AgentController parent2Agent = parent2?.GetComponent<AgentController>();
-        AgentController offspringAgent = offspring.GetComponent<AgentController>();
+        // Get components safely - FIXED: Declare agentController variable properly
+        AgentController parent1Agent = GetComponentSafely<AgentController>(parent1);
+        AgentController parent2Agent = parent2 != null ? GetComponentSafely<AgentController>(parent2) : null;
+        AgentController offspringAgent = GetComponentSafely<AgentController>(offspring);
 
-        if (parent1Agent != null && offspringAgent != null)
+        if (parent1Agent == null)
+        {
+            Debug.LogError("Parent1 does not have AgentController component");
+            return offspring; // Return the offspring anyway, just won't have inheritance
+        }
+
+        if (offspringAgent == null)
+        {
+            Debug.LogError("Spawned offspring does not have AgentController component");
+            return offspring;
+        }
+
+        try
         {
             // Set generation
             int parentGen = parent1Agent.Generation;
@@ -133,7 +256,47 @@ public class AgentSpawner : MonoBehaviour
                 highestGeneration = newGeneration;
             }
 
-            // Inherit genetic traits
+            // Inherit genetic traits safely
+            InheritGenetics(parent1Agent, parent2Agent, offspringAgent);
+
+            // Setup age integration
+            SimpleAgeIntegration.SetupOffspringAge(offspring, parent1, parent2);
+
+            Debug.Log($" [AGENT] Successfully spawned offspring from {parent1.name} and {(parent2 != null ? parent2.name : "unknown")}");
+            return offspring;
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"Error during offspring setup: {e.Message}\n{e.StackTrace}");
+            return offspring; // Return offspring even if inheritance failed
+        }
+    }
+
+    /// <summary>
+    /// Safe component getter that handles destroyed objects
+    /// </summary>
+    private T GetComponentSafely<T>(GameObject obj) where T : Component
+    {
+        if (obj == null) return null;
+
+        try
+        {
+            return obj.GetComponent<T>();
+        }
+        catch (MissingReferenceException)
+        {
+            Debug.LogWarning($"Cannot get component {typeof(T).Name} - GameObject has been destroyed");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Handle genetic inheritance safely
+    /// </summary>
+    private void InheritGenetics(AgentController parent1Agent, AgentController parent2Agent, AgentController offspringAgent)
+    {
+        try
+        {
             GeneticsSystem offspringGenetics = offspringAgent.GetGeneticsSystem();
             GeneticsSystem parent1Genetics = parent1Agent.GetGeneticsSystem();
             GeneticsSystem parent2Genetics = parent2Agent?.GetGeneticsSystem();
@@ -145,22 +308,24 @@ public class AgentSpawner : MonoBehaviour
                 // Update age system from genetics
                 AgeSystem ageSystem = offspringAgent.GetAgeSystem();
                 if (ageSystem != null)
-                    
-                {   
+                {
                     float deathAge = offspringGenetics.GetTraitValue(Genome.DEATH_AGE, 140f);
                     float pubertyAge = offspringGenetics.GetTraitValue(Genome.PUBERTY_AGE, 20f);
+
                     if (lifespanConfig != null)
                     {
-                        deathAge =lifespanConfig.GetRandomMaxAge();
+                        deathAge = lifespanConfig.GetRandomMaxAge();
                         pubertyAge = lifespanConfig.GetRandomMaturityAge();
                     }
+
                     ageSystem.SetAgeValues(deathAge, pubertyAge);
                 }
             }
         }
-        SimpleAgeIntegration.SetupOffspringAge(offspring, parent1, parent2);
-        Debug.Log($"Spawned offspring from {parent1.name} and {(parent2 != null ? parent2.name : "unknown")}");
-        return offspring;
+        catch (System.Exception e)
+        {
+            Debug.LogError($"Error during genetic inheritance: {e.Message}");
+        }
     }
 
     /// <summary>
@@ -170,41 +335,13 @@ public class AgentSpawner : MonoBehaviour
     {
         totalAgentsDied++;
 
-        // Get agent info
-        AgentController agentController = agent.GetComponent<AgentController>();
+        // Get agent info safely
+        AgentController agentController = GetComponentSafely<AgentController>(agent);
         int generation = agentController != null ? agentController.Generation : 1;
 
-        // Log death
-        Debug.Log($"Agent {agent.name} (Gen {generation}) died from {cause}");
-
-        // You might want to report this to a statistics manager
-        // StatisticsManager.Instance.RecordDeath(cause);
+        Debug.Log($"Agent {agent?.name ?? "unknown"} (Gen {generation}) died from {cause}");
     }
 
-    /// <summary>
-    /// Inherits traits from parents to offspring 
-    /// (Implement this when you have a genome system)
-    /// </summary>
-    private void InheritTraits(GameObject parent1, GameObject parent2, GameObject offspring)
-    {
-        // This is a placeholder - replace with your actual trait inheritance system
-        // Example:
-        /*
-        GenomeComponent parent1Genome = parent1.GetComponent<GenomeComponent>();
-        GenomeComponent parent2Genome = parent2.GetComponent<GenomeComponent>();
-        GenomeComponent offspringGenome = offspring.GetComponent<GenomeComponent>();
-        
-        if (parent1Genome != null && parent2Genome != null && offspringGenome != null)
-        {
-            // Inherit traits from parents with potential mutation
-            offspringGenome.InheritFrom(parent1Genome, parent2Genome, enableMutation, mutationRate, mutationAmount);
-        }
-        */
-    }
-
-    /// <summary>
-    /// Gets a random position within world bounds
-    /// </summary>
     private Vector3 GetRandomPosition()
     {
         return new Vector3(
@@ -214,19 +351,43 @@ public class AgentSpawner : MonoBehaviour
         );
     }
 
-    /// <summary>
-    /// Gets world bounds
-    /// </summary>
     public Vector2 GetWorldBounds()
     {
         return worldBounds;
     }
 
-    /// <summary>
-    /// Set world bounds
-    /// </summary>
     public void SetWorldBounds(Vector2 bounds)
     {
         worldBounds = bounds;
+    }
+
+    /// <summary>
+    /// Emergency method to set a new agent prefab at runtime
+    /// </summary>
+    public void SetAgentPrefab(GameObject newPrefab)
+    {
+        if (newPrefab != null)
+        {
+            agentPrefab = newPrefab;
+            Debug.Log($"Agent prefab changed to: {newPrefab.name}");
+        }
+    }
+
+    /// <summary>
+    /// Debug method to validate current state
+    /// </summary>
+    [ContextMenu("Validate Agent Spawner")]
+    public void ValidateSpawner()
+    {
+        Debug.Log("=== AGENT SPAWNER VALIDATION ===");
+        Debug.Log($"Agent Prefab: {(agentPrefab != null ? agentPrefab.name : "NULL")}");
+        Debug.Log($"Backup Prefab: {(backupAgentPrefab != null ? backupAgentPrefab.name : "NULL")}");
+        Debug.Log($"Lifespan Config: {(lifespanConfig != null ? "OK" : "NULL")}");
+        Debug.Log($"Total Born: {totalAgentsBorn}");
+        Debug.Log($"Total Died: {totalAgentsDied}");
+        Debug.Log($"Highest Generation: {highestGeneration}");
+
+        bool canSpawn = ValidateAgentPrefab();
+        Debug.Log($"Can Spawn: {canSpawn}");
     }
 }

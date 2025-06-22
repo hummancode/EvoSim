@@ -1,3 +1,7 @@
+// ============================================================================
+// FILE: EnhancedStatisticsDashboard.cs - Updated Dashboard with New Chart Types
+// ============================================================================
+
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
@@ -6,10 +10,10 @@ using System.Linq;
 
 public class StatisticsDashboard : MonoBehaviour
 {
-    [Header("Charts")]
-    [SerializeField] private SimpleLineChart populationChart;
-    [SerializeField] private SimpleLineChart foodChart;
-    [SerializeField] private SimpleLineChart birthDeathChart;
+    [Header("New Chart Components")]
+    [SerializeField] private DualAxisLineChart populationFoodChart;
+    [SerializeField] private HistogramChart deathCauseChart;
+    [SerializeField] private HistogramChart ageDistributionChart;
 
     [Header("Current Stats Display")]
     [SerializeField] private TextMeshProUGUI populationText;
@@ -18,11 +22,11 @@ public class StatisticsDashboard : MonoBehaviour
     [SerializeField] private TextMeshProUGUI deathsText;
     [SerializeField] private TextMeshProUGUI simulationTimeText;
 
-    [Header("Death Statistics")]
-    [SerializeField] private TextMeshProUGUI deathCausesText;
+    [Header("Advanced Death Statistics")]
     [SerializeField] private TextMeshProUGUI averageAgeText;
-    [SerializeField] private Transform deathCausesParent;
-    [SerializeField] private GameObject deathCauseBarPrefab;
+    [SerializeField] private TextMeshProUGUI averageAgeByStarvationText;
+    [SerializeField] private TextMeshProUGUI averageAgeByOldAgeText;
+    [SerializeField] private TextMeshProUGUI mortalityRateText;
 
     [Header("Generation Stats")]
     [SerializeField] private TextMeshProUGUI generationText;
@@ -33,13 +37,19 @@ public class StatisticsDashboard : MonoBehaviour
     [SerializeField] private Button loadButton;
     [SerializeField] private Button resetButton;
     [SerializeField] private Button pauseButton;
+    [SerializeField] private Button exportChartsButton;
 
-    [Header("Settings")]
+    [Header("Chart Update Settings")]
     [SerializeField] private float updateInterval = 0.5f;
     [SerializeField] private bool autoUpdate = true;
+    [SerializeField] private float ageDistributionBinSize = 10f;
+
+    [Header("Analysis Settings")]
+    [SerializeField] private bool showRealTimeAnalysis = true;
+    [SerializeField] private int minDeathsForAnalysis = 5;
 
     private float lastUpdateTime;
-    private List<GameObject> deathCauseBars = new List<GameObject>();
+    private DeathAgeAnalyzer deathAnalyzer;
 
     void Start()
     {
@@ -57,53 +67,27 @@ public class StatisticsDashboard : MonoBehaviour
 
     private void SetupDashboard()
     {
-        // Setup chart titles and colors
-        if (populationChart != null)
-        {
-            populationChart.SetTitle("Population Over Time");
-            populationChart.SetLineColor(Color.blue);
-        }
-
-        if (foodChart != null)
-        {
-            foodChart.SetTitle("Food Over Time");
-            foodChart.SetLineColor(Color.green);
-        }
-
-        if (birthDeathChart != null)
-        {
-            birthDeathChart.SetTitle("Birth Rate vs Death Rate");
-            birthDeathChart.SetLineColor(Color.red);
-        }
-
-        // Setup buttons
         SetupButtons();
-
-        // Create death cause bar prefab if needed
-        if (deathCauseBarPrefab == null)
-            CreateDeathCauseBarPrefab();
+        SetupCharts();
+        Debug.Log("Enhanced Statistics Dashboard initialized");
     }
 
     private void SetupButtons()
     {
         if (saveButton != null)
             saveButton.onClick.AddListener(() => {
-                // For now, just log - we'll implement proper saving later
-                Debug.Log("Save button clicked - saving functionality to be implemented");
+                StatisticsManager.Instance?.SaveStatistics();
+                Debug.Log("Statistics saved");
             });
 
         if (loadButton != null)
-            loadButton.onClick.AddListener(() => {
-                Debug.Log("Load button clicked - loading functionality to be implemented");
-            });
+            loadButton.onClick.AddListener(LoadLatestSimulation);
 
         if (resetButton != null)
             resetButton.onClick.AddListener(() => {
-                if (StatisticsManager.Instance != null)
-                {
-                    StatisticsManager.Instance.ResetStatistics();
-                    ClearAllCharts();
-                }
+                StatisticsManager.Instance?.ResetStatistics();
+                ClearAllCharts();
+                Debug.Log("Statistics reset");
             });
 
         if (pauseButton != null)
@@ -111,6 +95,30 @@ public class StatisticsDashboard : MonoBehaviour
                 Time.timeScale = Time.timeScale > 0 ? 0 : 1;
                 UpdatePauseButtonText();
             });
+
+        if (exportChartsButton != null)
+            exportChartsButton.onClick.AddListener(ExportChartData);
+    }
+
+    private void SetupCharts()
+    {
+        // Setup dual-axis population/food chart
+        if (populationFoodChart != null)
+        {
+            Debug.Log("Population/Food dual-axis chart ready");
+        }
+
+        // Setup death cause histogram
+        if (deathCauseChart != null)
+        {
+            Debug.Log("Death cause histogram ready");
+        }
+
+        // Setup age distribution histogram
+        if (ageDistributionChart != null)
+        {
+            Debug.Log("Age distribution histogram ready");
+        }
     }
 
     private void UpdateDashboard()
@@ -121,7 +129,7 @@ public class StatisticsDashboard : MonoBehaviour
 
         UpdateCurrentStats(data);
         UpdateCharts(data);
-        UpdateDeathStatistics(data);
+        UpdateAdvancedDeathStatistics(data);
         UpdateGenerationStats(data);
     }
 
@@ -145,177 +153,86 @@ public class StatisticsDashboard : MonoBehaviour
 
     private void UpdateCharts(StatisticsData data)
     {
-        // Update population chart
-        if (populationChart != null && data.populationOverTime.Count > 0)
+        // Update dual-axis population/food chart
+        if (populationFoodChart != null && data.populationOverTime.Count > 0)
         {
-            populationChart.SetData(data.populationOverTime.timestamps, data.populationOverTime.values);
+            populationFoodChart.SetData(
+                data.populationOverTime.timestamps,
+                data.populationOverTime.values,
+                data.foodOverTime.values
+            );
         }
 
-        // Update food chart
-        if (foodChart != null && data.foodOverTime.Count > 0)
+        // Update death cause histogram
+        if (deathCauseChart != null && data.totalDeaths >= minDeathsForAnalysis)
         {
-            foodChart.SetData(data.foodOverTime.timestamps, data.foodOverTime.values);
+            var deathCounts = data.GetDeathCountsByCause();
+            deathCauseChart.SetDeathCauseData(deathCounts, data.totalDeaths);
         }
 
-        // Update birth/death rate chart
-        if (birthDeathChart != null)
+        // Update age distribution histogram
+        if (ageDistributionChart != null && data.deathRecords.Count >= minDeathsForAnalysis)
         {
-            UpdateBirthDeathChart(data);
-        }
-    }
-
-    private void UpdateBirthDeathChart(StatisticsData data)
-    {
-        // Calculate birth rate (births per time unit)
-        List<float> times = new List<float>();
-        List<float> deathRate = new List<float>();
-
-        if (data.deathRecords.Count > 0)
-        {
-            // Group deaths by time windows (e.g., every 10 seconds)
-            float timeWindow = 10f;
-            float maxTime = data.simulationDuration;
-
-            for (float t = 0; t < maxTime; t += timeWindow)
-            {
-                int deathsInWindow = data.deathRecords.Count(d => d.timestamp >= t && d.timestamp < t + timeWindow);
-                times.Add(t);
-                deathRate.Add(deathsInWindow / timeWindow); // Deaths per second
-            }
-
-            birthDeathChart.SetData(times, deathRate);
+            var deathAges = data.deathRecords.Select(d => d.age).ToList();
+            ageDistributionChart.SetAgeDistributionData(deathAges, ageDistributionBinSize);
         }
     }
 
-    private void UpdateDeathStatistics(StatisticsData data)
+    private void UpdateAdvancedDeathStatistics(StatisticsData data)
     {
-        var deathCounts = data.GetDeathCountsByCause();
+        if (data.deathRecords.Count == 0) return;
+
+        // Create death analyzer for advanced statistics
+        deathAnalyzer = new DeathAgeAnalyzer(data.deathRecords);
+
+        // Overall average death age
         float avgAge = data.GetAverageDeathAge();
-
         if (averageAgeText != null)
             averageAgeText.text = $"Avg Death Age: {avgAge:F1}s";
 
-        // Update death causes text
-        if (deathCausesText != null)
-        {
-            string deathText = "Death Causes:\n";
-            foreach (var kvp in deathCounts)
-            {
-                float percentage = (float)kvp.Value / data.totalDeaths * 100f;
-                deathText += $"{kvp.Key}: {kvp.Value} ({percentage:F1}%)\n";
-            }
-            deathCausesText.text = deathText;
-        }
+        // Average death age by cause
+        float avgStarvationAge = deathAnalyzer.GetAverageDeathAgeForCause("starvation");
+        float avgOldAge = deathAnalyzer.GetAverageDeathAgeForCause("old age");
 
-        // Update death cause bars
-        UpdateDeathCauseBars(deathCounts, data.totalDeaths);
+        if (averageAgeByStarvationText != null)
+            averageAgeByStarvationText.text = $"Avg Starvation Age: {avgStarvationAge:F1}s";
+
+        if (averageAgeByOldAgeText != null)
+            averageAgeByOldAgeText.text = $"Avg Old Age Death: {avgOldAge:F1}s";
+
+        // Calculate mortality rate (deaths per time unit)
+        float mortalityRate = CalculateMortalityRate(data);
+        if (mortalityRateText != null)
+            mortalityRateText.text = $"Mortality Rate: {mortalityRate:F2}/min";
     }
 
-    private void UpdateDeathCauseBars(Dictionary<string, int> deathCounts, int totalDeaths)
+    private float CalculateMortalityRate(StatisticsData data)
     {
-        if (deathCausesParent == null) return;
+        if (data.simulationDuration <= 0) return 0f;
 
-        // Clear existing bars
-        ClearDeathCauseBars();
-
-        if (totalDeaths == 0) return;
-
-        // Create bars for each death cause
-        float maxBarWidth = 200f;
-        int maxDeaths = deathCounts.Values.Max();
-
-        foreach (var kvp in deathCounts)
-        {
-            GameObject barObj = Instantiate(deathCauseBarPrefab, deathCausesParent);
-
-            // Set bar width based on count
-            float barWidth = (float)kvp.Value / maxDeaths * maxBarWidth;
-            RectTransform barRect = barObj.GetComponent<RectTransform>();
-            barRect.sizeDelta = new Vector2(barWidth, 20f);
-
-            // Set label
-            TextMeshProUGUI label = barObj.GetComponentInChildren<TextMeshProUGUI>();
-            if (label != null)
-            {
-                float percentage = (float)kvp.Value / totalDeaths * 100f;
-                label.text = $"{kvp.Key}: {kvp.Value} ({percentage:F1}%)";
-            }
-
-            // Set color based on cause
-            Image barImage = barObj.GetComponent<Image>();
-            if (barImage != null)
-            {
-                barImage.color = GetColorForDeathCause(kvp.Key);
-            }
-
-            deathCauseBars.Add(barObj);
-        }
+        // Deaths per minute
+        float timeInMinutes = data.simulationDuration / 60f;
+        return timeInMinutes > 0 ? data.totalDeaths / timeInMinutes : 0f;
     }
 
     private void UpdateGenerationStats(StatisticsData data)
     {
-        // This would require additional data tracking
-        // For now, just show placeholder
-        if (generationText != null)
-            generationText.text = "Highest Gen: N/A";
+        // Get highest generation from spawner
+        AgentSpawner spawner = FindObjectOfType<AgentSpawner>();
+        if (spawner != null && generationText != null)
+        {
+            generationText.text = $"Highest Gen: {spawner.HighestGeneration}";
+        }
 
         if (avgLifespanText != null)
             avgLifespanText.text = $"Avg Lifespan: {data.GetAverageDeathAge():F1}s";
     }
 
-    private Color GetColorForDeathCause(string cause)
-    {
-        switch (cause.ToLower())
-        {
-            case "starvation": return Color.red;
-            case "old age": return Color.blue;
-            case "disease": return Color.yellow;
-            default: return Color.gray;
-        }
-    }
-
-    private void ClearDeathCauseBars()
-    {
-        foreach (GameObject bar in deathCauseBars)
-        {
-            if (bar != null)
-                DestroyImmediate(bar);
-        }
-        deathCauseBars.Clear();
-    }
-
     private void ClearAllCharts()
     {
-        populationChart?.ClearChart();
-        foodChart?.ClearChart();
-        birthDeathChart?.ClearChart();
-        ClearDeathCauseBars();
-    }
-
-    private void CreateDeathCauseBarPrefab()
-    {
-        GameObject prefab = new GameObject("DeathCauseBar");
-        prefab.AddComponent<RectTransform>();
-
-        // Add background image
-        Image bgImage = prefab.AddComponent<Image>();
-        bgImage.color = Color.gray;
-
-        // Add text label
-        GameObject textObj = new GameObject("Label");
-        textObj.transform.SetParent(prefab.transform);
-        TextMeshProUGUI text = textObj.AddComponent<TextMeshProUGUI>();
-        text.text = "Death Cause";
-        text.fontSize = 12;
-        text.color = Color.white;
-
-        RectTransform textRect = textObj.GetComponent<RectTransform>();
-        textRect.anchorMin = Vector2.zero;
-        textRect.anchorMax = Vector2.one;
-        textRect.offsetMin = Vector2.zero;
-        textRect.offsetMax = Vector2.zero;
-
-        deathCauseBarPrefab = prefab;
+        populationFoodChart?.ClearChart();
+        deathCauseChart?.ClearChart();
+        ageDistributionChart?.ClearChart();
     }
 
     private void UpdatePauseButtonText()
@@ -330,7 +247,100 @@ public class StatisticsDashboard : MonoBehaviour
         }
     }
 
-    // Public methods for manual control
+    private void LoadLatestSimulation()
+    {
+        if (StatisticsManager.Instance == null) return;
+
+        string[] availableSaves = StatisticsManager.Instance.GetAvailableSaves();
+
+        if (availableSaves.Length > 0)
+        {
+            string latestFile = availableSaves[availableSaves.Length - 1];
+            StatisticsManager.Instance.LoadStatistics(latestFile);
+            Debug.Log($"Loaded latest simulation: {latestFile}");
+
+            // Force update after loading
+            UpdateDashboard();
+        }
+        else
+        {
+            Debug.Log("No saved simulations found to load");
+        }
+    }
+
+    private void ExportChartData()
+    {
+        if (StatisticsManager.Instance == null) return;
+
+        StatisticsData data = StatisticsManager.Instance.Data;
+
+        // Create a comprehensive data export
+        string exportData = CreateChartDataExport(data);
+
+        // Save to a text file (you could extend this to CSV, JSON, etc.)
+        string filename = $"ChartData_{System.DateTime.Now:yyyy-MM-dd_HH-mm-ss}.txt";
+        string path = System.IO.Path.Combine(Application.persistentDataPath, filename);
+
+        try
+        {
+            System.IO.File.WriteAllText(path, exportData);
+            Debug.Log($"Chart data exported to: {path}");
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"Failed to export chart data: {e.Message}");
+        }
+    }
+
+    private string CreateChartDataExport(StatisticsData data)
+    {
+        System.Text.StringBuilder sb = new System.Text.StringBuilder();
+
+        sb.AppendLine("=== SIMULATION CHART DATA EXPORT ===");
+        sb.AppendLine($"Export Time: {System.DateTime.Now}");
+        sb.AppendLine($"Simulation Duration: {data.simulationDuration:F1}s");
+        sb.AppendLine();
+
+        // Population over time
+        sb.AppendLine("POPULATION OVER TIME:");
+        sb.AppendLine("Time(s),Population");
+        for (int i = 0; i < data.populationOverTime.Count; i++)
+        {
+            sb.AppendLine($"{data.populationOverTime.timestamps[i]:F1},{data.populationOverTime.values[i]}");
+        }
+        sb.AppendLine();
+
+        // Food over time
+        sb.AppendLine("FOOD OVER TIME:");
+        sb.AppendLine("Time(s),Food");
+        for (int i = 0; i < data.foodOverTime.Count; i++)
+        {
+            sb.AppendLine($"{data.foodOverTime.timestamps[i]:F1},{data.foodOverTime.values[i]}");
+        }
+        sb.AppendLine();
+
+        // Death causes
+        sb.AppendLine("DEATH CAUSES:");
+        sb.AppendLine("Cause,Count");
+        var deathCounts = data.GetDeathCountsByCause();
+        foreach (var kvp in deathCounts)
+        {
+            sb.AppendLine($"{kvp.Key},{kvp.Value}");
+        }
+        sb.AppendLine();
+
+        // Death records
+        sb.AppendLine("INDIVIDUAL DEATH RECORDS:");
+        sb.AppendLine("Cause,Age,Time,Generation");
+        foreach (var death in data.deathRecords)
+        {
+            sb.AppendLine($"{death.cause},{death.age:F1},{death.timestamp:F1},{death.generation}");
+        }
+
+        return sb.ToString();
+    }
+
+    // Public interface methods
     public void ForceUpdate()
     {
         UpdateDashboard();
@@ -339,5 +349,57 @@ public class StatisticsDashboard : MonoBehaviour
     public void SetAutoUpdate(bool enabled)
     {
         autoUpdate = enabled;
+    }
+
+    public void SetAgeDistributionBinSize(float binSize)
+    {
+        ageDistributionBinSize = Mathf.Max(1f, binSize);
+        // Force update of age distribution chart
+        if (ageDistributionChart != null && StatisticsManager.Instance != null)
+        {
+            var data = StatisticsManager.Instance.Data;
+            if (data.deathRecords.Count >= minDeathsForAnalysis)
+            {
+                var deathAges = data.deathRecords.Select(d => d.age).ToList();
+                ageDistributionChart.SetAgeDistributionData(deathAges, ageDistributionBinSize);
+            }
+        }
+    }
+
+    public void SetMinDeathsForAnalysis(int minDeaths)
+    {
+        minDeathsForAnalysis = Mathf.Max(1, minDeaths);
+    }
+
+    // Debug methods
+    [ContextMenu("Force Chart Update")]
+    public void ForceChartUpdate()
+    {
+        ForceUpdate();
+    }
+
+    [ContextMenu("Test Death Cause Data")]
+    public void TestDeathCauseData()
+    {
+        if (deathCauseChart != null)
+        {
+            var testData = new Dictionary<string, int>
+            {
+                {"starvation", 15},
+                {"old age", 8},
+                {"disease", 3}
+            };
+            deathCauseChart.SetDeathCauseData(testData, 26);
+        }
+    }
+
+    [ContextMenu("Test Age Distribution")]
+    public void TestAgeDistribution()
+    {
+        if (ageDistributionChart != null)
+        {
+            var testAges = new List<float> { 12f, 25f, 34f, 45f, 23f, 67f, 89f, 34f, 45f, 56f, 78f, 23f, 34f };
+            ageDistributionChart.SetAgeDistributionData(testAges, 20f);
+        }
     }
 }

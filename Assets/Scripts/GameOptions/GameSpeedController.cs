@@ -44,7 +44,16 @@ public class GameSpeedController : MonoBehaviour
         // Set initial game speed
         SetGameSpeed(defaultSpeed);
     }
-
+    void Update()
+    {
+        if (Input.GetKeyDown(KeyCode.P)) // Press P for performance info
+        {
+            var manager = CentralAgentManager.Instance;
+            Debug.Log($"Agents: {manager.GetAgentCount()}, " +
+                     $"FPS: {manager.GetAverageFPS():F1}, " +
+                     $"Update Interval: {manager.GetRequiredUpdateInterval()*1000:F1}ms");
+        }
+    }
     // Called when slider value changes
     public void OnSpeedSliderChanged(float sliderValue)
     {
