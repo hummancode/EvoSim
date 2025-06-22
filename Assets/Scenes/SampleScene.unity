@@ -578,7 +578,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 147207150}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 1dc49b4e19b4a7545b9697ba208a8967, type: 3}
   m_Name: 
@@ -600,10 +600,21 @@ MonoBehaviour:
   matingColor: {r: 1, g: 0.5, b: 0.8, a: 1}
   hungryColor: {r: 0.9716981, g: 0, b: 0.32820213, a: 1}
   lowEnergyColor: {r: 1, g: 0, b: 0, a: 1}
+  controlFluffColors: 1
+  normalFluffColor: {r: 0.95, g: 0.92, b: 0.85, a: 1}
+  babyFluffColor: {r: 1, g: 0.98, b: 0.95, a: 1}
+  childFluffColor: {r: 0.98, g: 0.95, b: 0.88, a: 1}
+  adultFluffColor: {r: 0.95, g: 0.92, b: 0.85, a: 1}
+  elderlyFluffColor: {r: 0.85, g: 0.82, b: 0.75, a: 1}
+  matingFluffColor: {r: 1, g: 0.8, b: 0.9, a: 1}
+  hungryFluffColor: {r: 1, g: 0.9, b: 0.7, a: 1}
+  lowEnergyFluffColor: {r: 0.9, g: 0.7, b: 0.7, a: 1}
   matingPulseSpeed: 2
   hungryFlashSpeed: 1.5
   deathFlashDuration: 1
   deathFlashCount: 3
+  geneticColorInfluence: 0.2
+  fluffGeneticInfluence: 0.15
 --- !u!1 &259473923
 GameObject:
   m_ObjectHideFlags: 0
@@ -732,7 +743,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   agentPrefab: {fileID: 1152286915341841996, guid: e545d852016087949bcfbf5dd019c321, type: 3}
   backupAgentPrefab: {fileID: 0}
-  initialAgentCount: 4
+  initialAgentCount: 1
   worldBounds: {x: 27, y: 19.5}
   lifespanConfig: {fileID: 11400000, guid: 26197f047a7afbb45af05bb20e125dff, type: 2}
   totalAgentsBorn: 0
@@ -1080,7 +1091,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   chartTitle: Population & Food Over Time
-  maxDataPoints: 2000
+  maxDataPoints: 1000
   startFromTimeZero: 1
   populationColor: {r: 0, g: 0, b: 1, a: 1}
   leftAxisLabel: Population
@@ -1697,19 +1708,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f29d984209024c2479cb58155d141781, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  overlayColor:
-    r: 0.5
-    g: 0.5
-    b: 0.5
-    a: 0.4
-  enableBackgroundBlur: 1
-  blurIterations: 3
-  blurDistance: 1
-  chartArea: {fileID: 1768730253}
-  autoDetectChartArea: 1
-  blurPadding: {x: 10, y: 10}
-  setupOnStart: 1
-  sourceCamera: {fileID: 0}
 --- !u!114 &703888732
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3487,10 +3485,6 @@ PrefabInstance:
       propertyPath: m_Name
       value: Agent
       objectReference: {fileID: 0}
-    - target: {fileID: 1152286915341841996, guid: e545d852016087949bcfbf5dd019c321, type: 3}
-      propertyPath: m_IsActive
-      value: 1
-      objectReference: {fileID: 0}
     - target: {fileID: 1152286915341841999, guid: e545d852016087949bcfbf5dd019c321, type: 3}
       propertyPath: m_RootOrder
       value: 1
@@ -3536,32 +3530,108 @@ PrefabInstance:
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 3785587228444981674, guid: e545d852016087949bcfbf5dd019c321, type: 3}
+      propertyPath: bodySize.y
+      value: 1.1
+      objectReference: {fileID: 0}
+    - target: {fileID: 3785587228444981674, guid: e545d852016087949bcfbf5dd019c321, type: 3}
+      propertyPath: layerCount
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 3785587228444981674, guid: e545d852016087949bcfbf5dd019c321, type: 3}
+      propertyPath: maxCircles
+      value: 55
+      objectReference: {fileID: 0}
+    - target: {fileID: 3785587228444981674, guid: e545d852016087949bcfbf5dd019c321, type: 3}
+      propertyPath: minCircles
+      value: 33
+      objectReference: {fileID: 0}
+    - target: {fileID: 3785587228444981674, guid: e545d852016087949bcfbf5dd019c321, type: 3}
       propertyPath: cloudLayers
-      value: 2
+      value: 7
+      objectReference: {fileID: 0}
+    - target: {fileID: 3785587228444981674, guid: e545d852016087949bcfbf5dd019c321, type: 3}
+      propertyPath: textureSize
+      value: 128
+      objectReference: {fileID: 0}
+    - target: {fileID: 3785587228444981674, guid: e545d852016087949bcfbf5dd019c321, type: 3}
+      propertyPath: bodyOffset.y
+      value: -0.2
+      objectReference: {fileID: 0}
+    - target: {fileID: 3785587228444981674, guid: e545d852016087949bcfbf5dd019c321, type: 3}
+      propertyPath: headOffset.y
+      value: 0.3
       objectReference: {fileID: 0}
     - target: {fileID: 3785587228444981674, guid: e545d852016087949bcfbf5dd019c321, type: 3}
       propertyPath: cloudSoftness
-      value: 1
+      value: 4
+      objectReference: {fileID: 0}
+    - target: {fileID: 3785587228444981674, guid: e545d852016087949bcfbf5dd019c321, type: 3}
+      propertyPath: maxCircleSize
+      value: 0.3
+      objectReference: {fileID: 0}
+    - target: {fileID: 3785587228444981674, guid: e545d852016087949bcfbf5dd019c321, type: 3}
+      propertyPath: minCircleSize
+      value: 0.1
+      objectReference: {fileID: 0}
+    - target: {fileID: 3785587228444981674, guid: e545d852016087949bcfbf5dd019c321, type: 3}
+      propertyPath: circlediameter
+      value: 0.25
+      objectReference: {fileID: 0}
+    - target: {fileID: 3785587228444981674, guid: e545d852016087949bcfbf5dd019c321, type: 3}
+      propertyPath: cloudNoiseScale
+      value: 0.23
       objectReference: {fileID: 0}
     - target: {fileID: 3785587228444981674, guid: e545d852016087949bcfbf5dd019c321, type: 3}
       propertyPath: bodyFluffDensity
-      value: 4
-      objectReference: {fileID: 0}
-    - target: {fileID: 3785587228444981674, guid: e545d852016087949bcfbf5dd019c321, type: 3}
-      propertyPath: headFluffDensity
       value: 11
       objectReference: {fileID: 0}
     - target: {fileID: 3785587228444981674, guid: e545d852016087949bcfbf5dd019c321, type: 3}
-      propertyPath: headFluffMaxSize
-      value: 4
-      objectReference: {fileID: 0}
-    - target: {fileID: 3785587228444981674, guid: e545d852016087949bcfbf5dd019c321, type: 3}
-      propertyPath: currentFluffLevel
+      propertyPath: headFluffDensity
       value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 3785587228444981674, guid: e545d852016087949bcfbf5dd019c321, type: 3}
+      propertyPath: headFluffMaxSize
+      value: 1.3
+      objectReference: {fileID: 0}
+    - target: {fileID: 3785587228444981674, guid: e545d852016087949bcfbf5dd019c321, type: 3}
+      propertyPath: bodyFluffOffset.y
+      value: -0.4
+      objectReference: {fileID: 0}
+    - target: {fileID: 3785587228444981674, guid: e545d852016087949bcfbf5dd019c321, type: 3}
+      propertyPath: currentFluffLevel
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3785587228444981674, guid: e545d852016087949bcfbf5dd019c321, type: 3}
       propertyPath: headFluffBaseSize
+      value: 1.2
+      objectReference: {fileID: 0}
+    - target: {fileID: 3785587228444981674, guid: e545d852016087949bcfbf5dd019c321, type: 3}
+      propertyPath: headFluffOffset.y
+      value: 0.9
+      objectReference: {fileID: 0}
+    - target: {fileID: 3785587228444981674, guid: e545d852016087949bcfbf5dd019c321, type: 3}
+      propertyPath: bodyFluffMaxSize.x
+      value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: 3785587228444981674, guid: e545d852016087949bcfbf5dd019c321, type: 3}
+      propertyPath: bodyFluffMaxSize.y
       value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 3785587228444981674, guid: e545d852016087949bcfbf5dd019c321, type: 3}
+      propertyPath: cloudNoiseStrength
+      value: 3.3
+      objectReference: {fileID: 0}
+    - target: {fileID: 3785587228444981674, guid: e545d852016087949bcfbf5dd019c321, type: 3}
+      propertyPath: bodyFluffBaseSize.x
+      value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: 3785587228444981674, guid: e545d852016087949bcfbf5dd019c321, type: 3}
+      propertyPath: bodyFluffBaseSize.y
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 3785587228444981674, guid: e545d852016087949bcfbf5dd019c321, type: 3}
+      propertyPath: adultFluffMultiplier
+      value: 1
       objectReference: {fileID: 0}
     m_RemovedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: e545d852016087949bcfbf5dd019c321, type: 3}

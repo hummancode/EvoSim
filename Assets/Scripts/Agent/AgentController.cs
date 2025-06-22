@@ -106,7 +106,7 @@ public class AgentController : MonoBehaviour
 
         // Start with wandering behavior
         behaviorManager.SetInitialBehavior(context);
-        SimpleAgeIntegration.AddAgeSpriteSystem(gameObject);
+        //SimpleAgeIntegration.AddAgeSpriteSystem(gameObject);
         if (enableCentralManagement && CentralAgentManager.Instance != null)
         {
             CentralAgentManager.Instance.RegisterAgent(this);

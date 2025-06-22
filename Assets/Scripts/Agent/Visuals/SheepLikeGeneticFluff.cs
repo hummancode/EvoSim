@@ -436,20 +436,24 @@ public class SheepLikeGeneticFluff : MonoBehaviour
         bodyFluffSize = Vector2.Lerp(bodyFluffBaseSize, bodyFluffMaxSize, currentFluffLevel);
     }
 
-    private void ApplyFluffSprites()
+private void ApplyFluffSprites()
+{
+    if (headFluffSprites == null || bodyFluffSprites == null) return;
+
+    // Choose sprites based on fluff level
+    int spriteIndex = Mathf.RoundToInt(currentFluffLevel * (headFluffSprites.Length - 1));
+    spriteIndex = Mathf.Clamp(spriteIndex, 0, headFluffSprites.Length - 1);
+
+    // Apply head fluff
+    if (headFluffRenderer != null)
     {
-        if (headFluffSprites == null || bodyFluffSprites == null) return;
+        headFluffRenderer.sprite = headFluffSprites[spriteIndex];
 
-        // Choose sprites based on fluff level
-        int spriteIndex = Mathf.RoundToInt(currentFluffLevel * (headFluffSprites.Length - 1));
-        spriteIndex = Mathf.Clamp(spriteIndex, 0, headFluffSprites.Length - 1);
-
-        // Apply head fluff
-        if (headFluffRenderer != null)
+        // CHECK: If AgentVisualController is managing colors, DON'T override them
+        AgentVisualController visualController = GetComponent<AgentVisualController>();
+        if (visualController == null || !visualController.controlFluffColors)
         {
-            headFluffRenderer.sprite = headFluffSprites[spriteIndex];
-
-            // Color with genetic influence
+            // Only set color if AgentVisualController isn't controlling it
             Color headColor = fluffColor;
             if (geneticsSystem != null)
             {
@@ -458,13 +462,18 @@ public class SheepLikeGeneticFluff : MonoBehaviour
             }
             headFluffRenderer.color = headColor;
         }
+    }
 
-        // Apply body fluff
-        if (bodyFluffRenderer != null)
+    // Apply body fluff
+    if (bodyFluffRenderer != null)
+    {
+        bodyFluffRenderer.sprite = bodyFluffSprites[spriteIndex];
+
+        // CHECK: If AgentVisualController is managing colors, DON'T override them
+        AgentVisualController visualController = GetComponent<AgentVisualController>();
+        if (visualController == null || !visualController.controlFluffColors)
         {
-            bodyFluffRenderer.sprite = bodyFluffSprites[spriteIndex];
-
-            // Color with genetic influence (slightly different from head)
+            // Only set color if AgentVisualController isn't controlling it
             Color bodyColor = fluffColor;
             if (geneticsSystem != null)
             {
@@ -473,10 +482,10 @@ public class SheepLikeGeneticFluff : MonoBehaviour
             }
             bodyFluffRenderer.color = bodyColor;
         }
-
-        Debug.Log($"Applied sheep fluff: level={currentFluffLevel:F2}, head={headFluffSize:F2}, body={bodyFluffSize}");
     }
 
+    Debug.Log($"Applied sheep fluff: level={currentFluffLevel:F2}, head={headFluffSize:F2}, body={bodyFluffSize}");
+}
     private void UpdateDebugInfo()
     {
         hasGenetics = geneticsSystem != null;

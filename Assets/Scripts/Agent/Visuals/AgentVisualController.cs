@@ -37,15 +37,15 @@ public class AgentVisualController : MonoBehaviour
     [SerializeField] private Color lowEnergyColor = Color.red;
 
     [Header("🐑 FLUFF COLOR CONTROL")]
-    [SerializeField] private bool controlFluffColors = true;
-    [SerializeField] private Color normalFluffColor = new Color(0.95f, 0.92f, 0.85f, 1f);
-    [SerializeField] private Color babyFluffColor = new Color(1f, 0.98f, 0.95f, 1f); // Very light cream
-    [SerializeField] private Color childFluffColor = new Color(0.98f, 0.95f, 0.88f, 1f); // Light cream
-    [SerializeField] private Color adultFluffColor = new Color(0.95f, 0.92f, 0.85f, 1f); // Normal cream
-    [SerializeField] private Color elderlyFluffColor = new Color(0.85f, 0.82f, 0.75f, 1f); // Greyish cream
-    [SerializeField] private Color matingFluffColor = new Color(1f, 0.8f, 0.9f, 1f); // Pink tinted
-    [SerializeField] private Color hungryFluffColor = new Color(1f, 0.9f, 0.7f, 1f); // Yellowish
-    [SerializeField] private Color lowEnergyFluffColor = new Color(0.9f, 0.7f, 0.7f, 1f); // Reddish
+    [SerializeField] public bool controlFluffColors = true;
+    [SerializeField] private Color normalFluffColor = Color.white;                        // Same as normalColor
+    [SerializeField] private Color babyFluffColor = new Color(0.7f, 0.9f, 1f, 1f);      // Same as babyColor
+    [SerializeField] private Color childFluffColor = new Color(0.8f, 1f, 0.8f, 1f);     // Same as childColor
+    [SerializeField] private Color adultFluffColor = Color.white;                        // Same as adultColor
+    [SerializeField] private Color elderlyFluffColor = new Color(0.9f, 0.9f, 0.7f, 1f); // Same as elderlyColor
+    [SerializeField] private Color matingFluffColor = new Color(1f, 0.5f, 0.8f, 1f);    // Same as matingColor
+    [SerializeField] private Color hungryFluffColor = new Color(1f, 0.8f, 0.3f, 1f);    // Same as hungryColor
+    [SerializeField] private Color lowEnergyFluffColor = Color.red;
 
     [Header("Effect Settings")]
     [SerializeField] private float matingPulseSpeed = 2f;
@@ -78,11 +78,20 @@ public class AgentVisualController : MonoBehaviour
     private Color originalColor;
     private Color originalFluffColor;
 
+
     void Awake()
     {
+        // ENSURE fluff system is initialized FIRST
+        SheepLikeGeneticFluff fluffSystem = GetComponent<SheepLikeGeneticFluff>();
+        if (fluffSystem != null)
+        {
+            // Force the fluff system to setup components if it hasn't already
+            fluffSystem.SendMessage("SetupComponents", SendMessageOptions.DontRequireReceiver);
+        }
+
         SetupComponents();
         SetupSpriteRenderers();
-        FindFluffRenderers();
+        FindFluffRenderers(); // This should now find the fluff renderers
         CacheOriginalValues();
     }
 
@@ -138,24 +147,7 @@ public class AgentVisualController : MonoBehaviour
     /// <summary>
     /// Find fluff renderers automatically
     /// </summary>
-    private void FindFluffRenderers()
-    {
-        // Find head fluff renderer
-        Transform headFluff = transform.Find("HeadFluff");
-        if (headFluff != null)
-        {
-            headFluffRenderer = headFluff.GetComponent<SpriteRenderer>();
-        }
 
-        // Find body fluff renderer
-        Transform bodyFluff = transform.Find("BodyFluff");
-        if (bodyFluff != null)
-        {
-            bodyFluffRenderer = bodyFluff.GetComponent<SpriteRenderer>();
-        }
-
-        Debug.Log($"Visual Controller: Found head fluff: {headFluffRenderer != null}, body fluff: {bodyFluffRenderer != null}");
-    }
 
     private void CacheOriginalValues()
     {
@@ -263,41 +255,106 @@ public class AgentVisualController : MonoBehaviour
     /// <summary>
     /// NEW: Update fluff colors based on current state
     /// </summary>
+    /// <summary>
+    /// Find fluff renderers automatically - with NULL safety
+    /// </summary>
+    private void FindFluffRenderers()
+    {
+        // DEBUG: List all child objects
+        Debug.Log($"Agent {gameObject.name} has {transform.childCount} children:");
+        for (int i = 0; i < transform.childCount; i++)
+        {
+            Debug.Log($"  Child {i}: {transform.GetChild(i).name}");
+        }
+
+        // Find head fluff renderer
+        Transform headFluff = transform.Find("HeadFluff");
+        if (headFluff != null)
+        {
+            headFluffRenderer = headFluff.GetComponent<SpriteRenderer>();
+        }
+
+        // Find body fluff renderer
+        Transform bodyFluff = transform.Find("BodyFluff");
+        if (bodyFluff != null)
+        {
+            bodyFluffRenderer = bodyFluff.GetComponent<SpriteRenderer>();
+        }
+
+        Debug.Log($"Visual Controller: Found head fluff: {headFluffRenderer != null}, body fluff: {bodyFluffRenderer != null}");
+    }
+
+    /// <summary>
+    /// NEW: Ensure fluff renderers are found before using them
+    /// </summary>
+    private void EnsureFluffRenderersFound()
+    {
+        // If renderers are null, try to find them again
+        if (headFluffRenderer == null || bodyFluffRenderer == null)
+        {
+            Debug.Log("Fluff renderers are NULL - re-finding them...");
+            FindFluffRenderers();
+        }
+    }
+
+    /// <summary>
+    /// NEW: Update fluff colors based on current state - with NULL safety
+    /// </summary>
     private void UpdateFluffColors()
     {
-        if (!controlFluffColors) return;
+        Debug.Log($"🔹 UpdateFluffColors START for {gameObject.name}");
+
+        if (!controlFluffColors)
+        {
+            Debug.Log("❌ Fluff color control is DISABLED");
+            return;
+        }
+        Debug.Log("✅ Fluff color control is ENABLED");
+
+        // ENSURE renderers are found
+        EnsureFluffRenderersFound();
+
+        Debug.Log($"🔹 After EnsureFluffRenderersFound: head={headFluffRenderer != null}, body={bodyFluffRenderer != null}");
+
+        if (headFluffRenderer == null && bodyFluffRenderer == null)
+        {
+            Debug.LogError("❌ BOTH FLUFF RENDERERS ARE NULL - CANNOT SET COLORS!");
+            return;
+        }
 
         Color targetFluffColor = GetFluffColorForCurrentState();
-
-        // Apply genetic influence to fluff color
-        if (geneticsSystem != null && !isMating && !isDead)
-        {
-            Color geneticColor = geneticsSystem.BaseColor;
-            targetFluffColor = Color.Lerp(targetFluffColor, geneticColor, fluffGeneticInfluence);
-        }
+        Debug.Log($"🎨 Target fluff color: {targetFluffColor} (isDead:{isDead}, isMating:{isMating}, isHungry:{isHungry})");
 
         // Apply to head fluff
         if (headFluffRenderer != null)
         {
+            Color oldColor = headFluffRenderer.color;
             headFluffRenderer.color = targetFluffColor;
+            Debug.Log($"🔴 HEAD FLUFF: {oldColor} -> {headFluffRenderer.color}");
+        }
+        else
+        {
+            Debug.LogError("❌ headFluffRenderer is NULL!");
         }
 
-        // Apply to body fluff (slightly different shade)
+        // Apply to body fluff
         if (bodyFluffRenderer != null)
         {
             Color bodyColor = targetFluffColor;
-            bodyColor.r *= 0.95f; // Slightly less red
-            bodyColor.g *= 0.95f; // Slightly less green
+            bodyColor.r *= 0.95f;
+            bodyColor.g *= 0.95f;
+
+            Color oldBodyColor = bodyFluffRenderer.color;
             bodyFluffRenderer.color = bodyColor;
+            Debug.Log($"🔵 BODY FLUFF: {oldBodyColor} -> {bodyFluffRenderer.color}");
         }
-
-        // Also update fluff system color if it exists
-        if (fluffSystem != null)
+        else
         {
-            // Don't call SetFluffColor as it recreates sprites, just let our renderers handle it
+            Debug.LogError("❌ bodyFluffRenderer is NULL!");
         }
-    }
 
+        Debug.Log($"🔹 UpdateFluffColors END for {gameObject.name}");
+    }
     /// <summary>
     /// Get fluff color based on current agent state
     /// </summary>
@@ -776,6 +833,7 @@ public class AgentVisualController : MonoBehaviour
         if (energySystem != null)
             energySystem.OnDeath -= OnDeath;
     }
+
 }
 
 /*
