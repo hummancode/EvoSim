@@ -1,20 +1,20 @@
 // ============================================================================
 // FILE: SheepLikeGeneticFluff.cs
-// PURPOSE: Sheep-style fluff with separate head and body clouds
+// PURPOSE: Simplified sheep-style fluff with single fluffiness parameter
 // ============================================================================
 
 using UnityEngine;
 
 /// <summary>
-/// Sheep-like fluff system with separate head and body fluff clouds
-/// Fluff level gene controls the size and density of both clouds
+/// Simplified sheep-like fluff system with single fluffiness parameter
+/// Controls shape from elliptical (0) to circular (1) with fluffy sine curves
 /// </summary>
 public class SheepLikeGeneticFluff : MonoBehaviour
 {
     [Header("?? SHEEP FLUFF SETTINGS")]
     [SerializeField] private bool enableFluff = true;
     [SerializeField] private float baseFluffLevel = 0.5f;
-    [SerializeField] private Color fluffColor = new Color(0.95f, 0.92f, 0.85f, 1f); // Cream white, NO ALPHA
+    [SerializeField] private Color fluffColor = new Color(0.95f, 0.92f, 0.85f, 1f); // Cream white
 
     [Header("?? GENETICS")]
     [SerializeField] private string fluffGeneTraitName = "FluffLevel";
@@ -23,33 +23,27 @@ public class SheepLikeGeneticFluff : MonoBehaviour
 
     [Header("?? AGE EFFECTS")]
     [SerializeField] private bool useAgeEffects = true;
-    [SerializeField] private float babyFluffMultiplier = 0.3f; // Babies have less fluff
+    [SerializeField] private float babyFluffMultiplier = 0.3f;
     [SerializeField] private float childFluffMultiplier = 0.6f;
-    [SerializeField] private float adultFluffMultiplier = 1.0f; // Full fluff
+    [SerializeField] private float adultFluffMultiplier = 1.0f;
     [SerializeField] private float elderlyFluffMultiplier = 0.8f;
 
-    [Header("?? HEAD FLUFF SETTINGS")]
-    [SerializeField] private Vector2 headFluffOffset = new Vector2(0f, 0.3f); // Offset from agent center
-    [SerializeField] private float headFluffBaseSize = 0.8f; // Base size multiplier
-    [SerializeField] private float headFluffMaxSize = 1.5f; // Max size at full genetics
-    [SerializeField] private int headFluffDensity = 6; // Cloud density
+    [Header("?? SHAPE SETTINGS")]
+    [SerializeField] private Vector2 headFluffOffset = new Vector2(0f, 0.3f);
+    [SerializeField] private Vector2 bodyFluffOffset = new Vector2(0f, -0.1f);
+    [SerializeField] private float baseSize = 0.8f; // Base radius/size
+    [SerializeField] private float maxSize = 1.5f; // Max size at full fluffiness
 
-    [Header("?? BODY FLUFF SETTINGS")]
-    [SerializeField] private Vector2 bodyFluffOffset = new Vector2(0f, -0.1f); // Slightly below center
-    [SerializeField] private Vector2 bodyFluffBaseSize = new Vector2(1.0f, 0.7f); // Base ellipse size (width, height)
-    [SerializeField] private Vector2 bodyFluffMaxSize = new Vector2(1.8f, 1.2f); // Max ellipse size
-    [SerializeField] private int bodyFluffDensity = 8; // Cloud density
-
-    [Header("?? CLOUD TEXTURE SETTINGS")]
-    [SerializeField, Range(0.05f, 0.3f)] private float cloudNoiseScale = 0.12f;
-    [SerializeField, Range(0.3f, 1.0f)] private float cloudNoiseStrength = 0.7f;
-    [SerializeField, Range(2, 6)] private int cloudLayers = 4;
-    [SerializeField, Range(1f, 3f)] private float cloudSoftness = 2f;
+    [Header("?? FLUFFINESS CURVE SETTINGS")]
+    [SerializeField, Range(4, 32)] private int curvaturePoints = 16; // Points around the edge
+    [SerializeField, Range(0.2f, 1.0f)] private float maxCurvatureDepth = 0.6f; // Max sine curve depth (BIGGER!)
+    [SerializeField, Range(4f, 12f)] private float curveFrequency = 8f; // Sine frequency multiplier (MORE WAVES!)
+    [SerializeField, Range(0f, 0.3f)] private float randomness = 0.1f; // Random variation (LESS CHAOS!)
 
     [Header("?? DEBUG INFO")]
-    [SerializeField] private float currentFluffLevel;
-    [SerializeField] private float headFluffSize;
-    [SerializeField] private Vector2 bodyFluffSize;
+    [SerializeField] private float fluffiness; // THE main parameter (0-1)
+    [SerializeField] private float currentFluffLevel; // For compatibility
+    [SerializeField] private float currentSize;
     [SerializeField] private bool hasGenetics;
     [SerializeField] private float geneticValue;
     [SerializeField] private string currentLifeStage;
@@ -73,7 +67,7 @@ public class SheepLikeGeneticFluff : MonoBehaviour
 
     void Start()
     {
-        CreateSheepFluffSprites();
+        CreateFluffSprites();
         Invoke(nameof(UpdateFluffiness), 0.1f);
     }
 
@@ -98,53 +92,38 @@ public class SheepLikeGeneticFluff : MonoBehaviour
             return;
         }
 
-        // Create or find head fluff
-        Transform headFluffChild = transform.Find("HeadFluff");
-        GameObject headFluffObject;
-
-        if (headFluffChild != null)
-        {
-            headFluffObject = headFluffChild.gameObject;
-            headFluffRenderer = headFluffObject.GetComponent<SpriteRenderer>();
-        }
-        else
-        {
-            headFluffObject = new GameObject("HeadFluff");
-            headFluffObject.transform.SetParent(transform);
-            headFluffRenderer = headFluffObject.AddComponent<SpriteRenderer>();
-        }
-
-        // Position and setup head fluff
-        headFluffObject.transform.localPosition = new Vector3(headFluffOffset.x, headFluffOffset.y, 0);
-        headFluffRenderer.sortingLayerName = agentSpriteRenderer.sortingLayerName;
-        headFluffRenderer.sortingOrder = agentSpriteRenderer.sortingOrder + 1; // ON TOP of agent
-
-        // Create or find body fluff
-        Transform bodyFluffChild = transform.Find("BodyFluff");
-        GameObject bodyFluffObject;
-
-        if (bodyFluffChild != null)
-        {
-            bodyFluffObject = bodyFluffChild.gameObject;
-            bodyFluffRenderer = bodyFluffObject.GetComponent<SpriteRenderer>();
-        }
-        else
-        {
-            bodyFluffObject = new GameObject("BodyFluff");
-            bodyFluffObject.transform.SetParent(transform);
-            bodyFluffRenderer = bodyFluffObject.AddComponent<SpriteRenderer>();
-        }
-
-        // Position and setup body fluff
-        bodyFluffObject.transform.localPosition = new Vector3(bodyFluffOffset.x, bodyFluffOffset.y, 0);
-        bodyFluffRenderer.sortingLayerName = agentSpriteRenderer.sortingLayerName;
-        bodyFluffRenderer.sortingOrder = agentSpriteRenderer.sortingOrder + 2; // ON TOP of head fluff
+        // Setup head fluff
+        SetupFluffRenderer("HeadFluff", headFluffOffset, out headFluffRenderer, 1);
+        // Setup body fluff  
+        SetupFluffRenderer("BodyFluff", bodyFluffOffset, out bodyFluffRenderer, 2);
 
         // Get other components
         geneticsSystem = GetComponent<GeneticsSystem>();
         lifeStageTracker = GetComponent<AgeLifeStageTracker>();
 
         Debug.Log($"SheepLikeGeneticFluff setup for {gameObject.name}");
+    }
+
+    private void SetupFluffRenderer(string name, Vector2 offset, out SpriteRenderer renderer, int sortingOrder)
+    {
+        Transform fluffChild = transform.Find(name);
+        GameObject fluffObject;
+
+        if (fluffChild != null)
+        {
+            fluffObject = fluffChild.gameObject;
+            renderer = fluffObject.GetComponent<SpriteRenderer>();
+        }
+        else
+        {
+            fluffObject = new GameObject(name);
+            fluffObject.transform.SetParent(transform);
+            renderer = fluffObject.AddComponent<SpriteRenderer>();
+        }
+
+        fluffObject.transform.localPosition = new Vector3(offset.x, offset.y, 0);
+        renderer.sortingLayerName = agentSpriteRenderer.sortingLayerName;
+        renderer.sortingOrder = agentSpriteRenderer.sortingOrder + sortingOrder;
     }
 
     /// <summary>
@@ -158,9 +137,9 @@ public class SheepLikeGeneticFluff : MonoBehaviour
         {
             GeneticTrait fluffTrait = new GeneticTrait(
                 fluffGeneTraitName,
-                Random.Range(0.2f, 0.9f), // Wide range for variety
+                Random.Range(0.2f, 0.9f),
                 0f, 1f,
-                0.15f, 0.25f // Higher mutation for more variety
+                0.15f, 0.25f
             );
 
             geneticsSystem.Genome.AddTrait(fluffTrait);
@@ -169,9 +148,9 @@ public class SheepLikeGeneticFluff : MonoBehaviour
     }
 
     /// <summary>
-    /// Create separate head and body fluff sprites
+    /// Create fluff sprites with varying shapes and curvature
     /// </summary>
-    private void CreateSheepFluffSprites()
+    private void CreateFluffSprites()
     {
         int levels = 6;
         headFluffSprites = new Sprite[levels];
@@ -179,22 +158,22 @@ public class SheepLikeGeneticFluff : MonoBehaviour
 
         for (int i = 0; i < levels; i++)
         {
-            float fluffLevel = i / (float)(levels - 1);
-            headFluffSprites[i] = CreateHeadFluffSprite(fluffLevel);
-            bodyFluffSprites[i] = CreateBodyFluffSprite(fluffLevel);
+            float levelFluffiness = i / (float)(levels - 1);
+            headFluffSprites[i] = CreateFluffSprite(levelFluffiness, true); // Head is more circular
+            bodyFluffSprites[i] = CreateFluffSprite(levelFluffiness, false); // Body is more elliptical
         }
 
-        Debug.Log($"Created {levels} head and body fluff sprites");
+        Debug.Log($"Created {levels} fluff sprites with varying shapes");
     }
 
     /// <summary>
-    /// Create circular head fluff sprite
+    /// Create a single fluff sprite with shape morphing and sine curvature
     /// </summary>
-    private Sprite CreateHeadFluffSprite(float fluffLevel)
+    private Sprite CreateFluffSprite(float fluffiness, bool isHead)
     {
-        if (fluffLevel <= 0f) return null;
+        if (fluffiness <= 0f) return null;
 
-        int size = 64;
+        int size = isHead ? 64 : 80;
         Texture2D texture = new Texture2D(size, size);
         Color[] pixels = new Color[size * size];
 
@@ -205,96 +184,53 @@ public class SheepLikeGeneticFluff : MonoBehaviour
         }
 
         Vector2 center = new Vector2(size * 0.5f, size * 0.5f);
-        float currentSize = Mathf.Lerp(headFluffBaseSize, headFluffMaxSize, fluffLevel);
-        float radius = size * 0.4f * currentSize;
+        float currentSize = Mathf.Lerp(baseSize, maxSize, fluffiness);
+        float baseRadius = size * 0.35f * currentSize;
 
-        // Draw cloudy circle for head
-        DrawCloudyCircle(pixels, center, radius, fluffLevel, size, headFluffDensity);
+        // Calculate shape ratios based on fluffiness
+        // At 0: very elliptical, At 1: more circular
+        float aspectRatio = isHead ?
+            Mathf.Lerp(1.0f, 1.0f, fluffiness) : // Head stays circular
+            Mathf.Lerp(0.6f, 0.9f, fluffiness);  // Body becomes less elliptical
 
-        texture.SetPixels(pixels);
-        texture.filterMode = FilterMode.Bilinear;
-        texture.Apply();
+        float radiusX = baseRadius;
+        float radiusY = baseRadius * aspectRatio;
 
-        return Sprite.Create(texture, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), size * 0.8f);
-    }
-
-    /// <summary>
-    /// Create elliptical body fluff sprite
-    /// </summary>
-    private Sprite CreateBodyFluffSprite(float fluffLevel)
-    {
-        if (fluffLevel <= 0f) return null;
-
-        int size = 80; // Slightly bigger for body
-        Texture2D texture = new Texture2D(size, size);
-        Color[] pixels = new Color[size * size];
-
-        // Clear background
-        for (int i = 0; i < pixels.Length; i++)
-        {
-            pixels[i] = Color.clear;
-        }
-
-        Vector2 center = new Vector2(size * 0.5f, size * 0.5f);
-
-        // Calculate current ellipse size
-        Vector2 currentSize = Vector2.Lerp(bodyFluffBaseSize, bodyFluffMaxSize, fluffLevel);
-        float radiusX = size * 0.35f * currentSize.x;
-        float radiusY = size * 0.35f * currentSize.y;
-
-        // Draw cloudy ellipse for body
-        DrawCloudyEllipse(pixels, center, radiusX, radiusY, fluffLevel, size, bodyFluffDensity);
+        // Draw fluffy shape with sine curvature
+        DrawFluffyShape(pixels, center, radiusX, radiusY, fluffiness, size);
 
         texture.SetPixels(pixels);
         texture.filterMode = FilterMode.Bilinear;
         texture.Apply();
 
-        return Sprite.Create(texture, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), size * 0.7f);
+        float pixelsPerUnit = size * (isHead ? 0.8f : 0.7f);
+        return Sprite.Create(texture, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), pixelsPerUnit);
     }
 
     /// <summary>
-    /// Draw cloudy circular pattern
+    /// Draw fluffy shape with sine-based edge curvature
     /// </summary>
-    private void DrawCloudyCircle(Color[] pixels, Vector2 center, float radius, float fluffLevel, int size, int density)
+    private void DrawFluffyShape(Color[] pixels, Vector2 center, float radiusX, float radiusY, float fluffiness, int size)
     {
-        int centerX = Mathf.RoundToInt(center.x);
-        int centerY = Mathf.RoundToInt(center.y);
-        int r = Mathf.RoundToInt(radius);
+        // Curvature increases with fluffiness
+        float curvatureDepth = maxCurvatureDepth * fluffiness;
 
-        for (int y = -r - 10; y <= r + 10; y++)
+        for (int y = 0; y < size; y++)
         {
-            for (int x = -r - 10; x <= r + 10; x++)
+            for (int x = 0; x < size; x++)
             {
-                int px = centerX + x;
-                int py = centerY + y;
+                Vector2 point = new Vector2(x - center.x, y - center.y);
 
-                if (px >= 0 && px < size && py >= 0 && py < size)
+                // Check if point is inside the fluffy shape
+                if (IsInsideFluffyShape(point, radiusX, radiusY, curvatureDepth, fluffiness))
                 {
-                    float distance = Mathf.Sqrt(x * x + y * y);
+                    Color fluffPixel = fluffColor;
+                    fluffPixel.a = 1f;
 
-                    // Create soft circular boundary
-                    float edgeAlpha = 1f - Mathf.Clamp01((distance - radius) / (cloudSoftness * fluffLevel + 1f));
-
-                    if (edgeAlpha > 0.1f)
+                    int index = y * size + x;
+                    if (index >= 0 && index < pixels.Length)
                     {
-                        // Multi-layer cloud noise
-                        float cloudValue = GetMultiLayerCloudNoise(px, py, density);
-
-                        // FULL OPACITY - no alpha blending
-                        float finalAlpha = edgeAlpha * cloudValue * fluffLevel;
-
-                        if (finalAlpha > 0.3f) // Only draw substantial cloud parts
-                        {
-                            Color cloudPixel = fluffColor; // Already has alpha = 1
-                            cloudPixel.a = 1f; // FORCE full opacity
-
-                            int index = py * size + px;
-                            if (index >= 0 && index < pixels.Length)
-                            {
-                                // Simple replacement - no alpha blending
-                                pixels[index] = cloudPixel;
-                            }
-                        }
+                        pixels[index] = fluffPixel;
                     }
                 }
             }
@@ -302,81 +238,50 @@ public class SheepLikeGeneticFluff : MonoBehaviour
     }
 
     /// <summary>
-    /// Draw cloudy elliptical pattern
+    /// Check if a point is inside the fluffy shape with sine curvature
     /// </summary>
-    private void DrawCloudyEllipse(Color[] pixels, Vector2 center, float radiusX, float radiusY, float fluffLevel, int size, int density)
+    private bool IsInsideFluffyShape(Vector2 point, float radiusX, float radiusY, float curvatureDepth, float fluffiness)
     {
-        int centerX = Mathf.RoundToInt(center.x);
-        int centerY = Mathf.RoundToInt(center.y);
-        int rX = Mathf.RoundToInt(radiusX);
-        int rY = Mathf.RoundToInt(radiusY);
+        // Basic ellipse test
+        float ellipseDistance = (point.x * point.x) / (radiusX * radiusX) + (point.y * point.y) / (radiusY * radiusY);
 
-        for (int y = -rY - 10; y <= rY + 10; y++)
-        {
-            for (int x = -rX - 10; x <= rX + 10; x++)
-            {
-                int px = centerX + x;
-                int py = centerY + y;
+        if (ellipseDistance > 1.5f) return false; // Far outside
 
-                if (px >= 0 && px < size && py >= 0 && py < size)
-                {
-                    // Ellipse distance calculation
-                    float ellipseDistance = (x * x) / (float)(rX * rX) + (y * y) / (float)(rY * rY);
+        // Calculate angle from center
+        float angle = Mathf.Atan2(point.y, point.x);
 
-                    // Create soft elliptical boundary
-                    float edgeAlpha = 1f - Mathf.Clamp01((ellipseDistance - 1f) / (cloudSoftness * fluffLevel * 0.5f + 0.5f));
+        // Generate PRONOUNCED sine-based curvature
+        float sineValue = Mathf.Sin(angle * curveFrequency);
 
-                    if (edgeAlpha > 0.1f)
-                    {
-                        // Multi-layer cloud noise
-                        float cloudValue = GetMultiLayerCloudNoise(px, py, density);
+        // Add secondary wave for more complexity
+        float secondaryWave = Mathf.Sin(angle * curveFrequency * 1.7f) * 0.3f;
 
-                        // FULL OPACITY
-                        float finalAlpha = edgeAlpha * cloudValue * fluffLevel;
+        // Minimal randomness, seed based on angle for consistency
+        float randomSeed = Mathf.Sin(angle * 13.7f) * 0.5f + 0.5f;
+        float randomOffset = (randomSeed - 0.5f) * randomness;
 
-                        if (finalAlpha > 0.3f) // Only draw substantial cloud parts
-                        {
-                            Color cloudPixel = fluffColor; // Full opacity color
-                            cloudPixel.a = 1f; // FORCE full opacity
+        // Combine waves with strong curvature effect
+        float totalCurvature = (sineValue + secondaryWave) * curvatureDepth + randomOffset * curvatureDepth * 0.2f;
 
-                            int index = py * size + px;
-                            if (index >= 0 && index < pixels.Length)
-                            {
-                                // Simple replacement - no alpha blending
-                                pixels[index] = cloudPixel;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
+        // Apply curvature more aggressively
+        float curvatureMultiplier = 1.0f + fluffiness * 1.5f; // Stronger effect at high fluffiness
+        totalCurvature *= curvatureMultiplier;
 
-    /// <summary>
-    /// Generate multi-layer cloud noise
-    /// </summary>
-    private float GetMultiLayerCloudNoise(float x, float y, int density)
-    {
-        float cloudNoise = 0f;
-        float totalWeight = 0f;
+        // Adjust the boundary based on curvature
+        float adjustedRadiusX = radiusX + totalCurvature;
+        float adjustedRadiusY = radiusY + totalCurvature * 0.8f; // Slightly less variation in Y
 
-        for (int layer = 0; layer < cloudLayers; layer++)
-        {
-            float scale = cloudNoiseScale * (1f + layer * 0.3f);
-            float weight = 1f / (layer + 1);
+        // Prevent negative radii
+        adjustedRadiusX = Mathf.Max(adjustedRadiusX, radiusX * 0.3f);
+        adjustedRadiusY = Mathf.Max(adjustedRadiusY, radiusY * 0.3f);
 
-            float layerNoise = Mathf.PerlinNoise(x * scale, y * scale);
-            cloudNoise += layerNoise * weight;
-            totalWeight += weight;
-        }
+        // Recalculate distance with adjusted radii
+        float adjustedDistance = (point.x * point.x) / (adjustedRadiusX * adjustedRadiusX) +
+                                (point.y * point.y) / (adjustedRadiusY * adjustedRadiusY);
 
-        cloudNoise /= totalWeight;
-
-        // Enhance contrast for more defined clouds
-        cloudNoise = Mathf.Pow(cloudNoise, 1.2f);
-
-        // Apply noise strength
-        return Mathf.Lerp(0.4f, 1f, cloudNoise * cloudNoiseStrength);
+        // Less soft edge so waves are more visible
+        float softEdge = 1.0f + (1f - fluffiness) * 0.1f; // Much less softening
+        return adjustedDistance <= softEdge;
     }
 
     /// <summary>
@@ -410,82 +315,73 @@ public class SheepLikeGeneticFluff : MonoBehaviour
         // Apply age effects
         if (useAgeEffects && lifeStageTracker != null)
         {
-            float ageMultiplier = 1f;
-            switch (lifeStageTracker.CurrentStage)
-            {
-                case AgeLifeStageTracker.LifeStage.Baby:
-                    ageMultiplier = babyFluffMultiplier;
-                    break;
-                case AgeLifeStageTracker.LifeStage.Child:
-                    ageMultiplier = childFluffMultiplier;
-                    break;
-                case AgeLifeStageTracker.LifeStage.Adult:
-                    ageMultiplier = adultFluffMultiplier;
-                    break;
-                case AgeLifeStageTracker.LifeStage.Elderly:
-                    ageMultiplier = elderlyFluffMultiplier;
-                    break;
-            }
+            float ageMultiplier = GetAgeMultiplier();
             currentFluffLevel *= ageMultiplier;
         }
 
         currentFluffLevel = Mathf.Clamp01(currentFluffLevel);
 
-        // Calculate debug sizes
-        headFluffSize = Mathf.Lerp(headFluffBaseSize, headFluffMaxSize, currentFluffLevel);
-        bodyFluffSize = Vector2.Lerp(bodyFluffBaseSize, bodyFluffMaxSize, currentFluffLevel);
+        // THIS IS THE MAIN FLUFFINESS PARAMETER!
+        fluffiness = currentFluffLevel;
+
+        currentSize = Mathf.Lerp(baseSize, maxSize, fluffiness);
     }
 
-private void ApplyFluffSprites()
-{
-    if (headFluffSprites == null || bodyFluffSprites == null) return;
-
-    // Choose sprites based on fluff level
-    int spriteIndex = Mathf.RoundToInt(currentFluffLevel * (headFluffSprites.Length - 1));
-    spriteIndex = Mathf.Clamp(spriteIndex, 0, headFluffSprites.Length - 1);
-
-    // Apply head fluff
-    if (headFluffRenderer != null)
+    private float GetAgeMultiplier()
     {
-        headFluffRenderer.sprite = headFluffSprites[spriteIndex];
-
-        // CHECK: If AgentVisualController is managing colors, DON'T override them
-        AgentVisualController visualController = GetComponent<AgentVisualController>();
-        if (visualController == null || !visualController.controlFluffColors)
+        switch (lifeStageTracker.CurrentStage)
         {
-            // Only set color if AgentVisualController isn't controlling it
-            Color headColor = fluffColor;
-            if (geneticsSystem != null)
-            {
-                headColor = Color.Lerp(fluffColor, geneticsSystem.BaseColor, 0.15f);
-                headColor.a = 1f; // Keep full opacity
-            }
-            headFluffRenderer.color = headColor;
+            case AgeLifeStageTracker.LifeStage.Baby: return babyFluffMultiplier;
+            case AgeLifeStageTracker.LifeStage.Child: return childFluffMultiplier;
+            case AgeLifeStageTracker.LifeStage.Adult: return adultFluffMultiplier;
+            case AgeLifeStageTracker.LifeStage.Elderly: return elderlyFluffMultiplier;
+            default: return 1f;
         }
     }
 
-    // Apply body fluff
-    if (bodyFluffRenderer != null)
+    private void ApplyFluffSprites()
     {
-        bodyFluffRenderer.sprite = bodyFluffSprites[spriteIndex];
+        if (headFluffSprites == null || bodyFluffSprites == null) return;
 
-        // CHECK: If AgentVisualController is managing colors, DON'T override them
-        AgentVisualController visualController = GetComponent<AgentVisualController>();
-        if (visualController == null || !visualController.controlFluffColors)
+        int spriteIndex = Mathf.RoundToInt(fluffiness * (headFluffSprites.Length - 1));
+        spriteIndex = Mathf.Clamp(spriteIndex, 0, headFluffSprites.Length - 1);
+
+        // Apply head fluff
+        if (headFluffRenderer != null)
         {
-            // Only set color if AgentVisualController isn't controlling it
-            Color bodyColor = fluffColor;
-            if (geneticsSystem != null)
-            {
-                bodyColor = Color.Lerp(fluffColor, geneticsSystem.BaseColor, 0.1f);
-                bodyColor.a = 1f; // Keep full opacity
-            }
-            bodyFluffRenderer.color = bodyColor;
+            headFluffRenderer.sprite = headFluffSprites[spriteIndex];
+            SetFluffColor(headFluffRenderer);
         }
+
+        // Apply body fluff
+        if (bodyFluffRenderer != null)
+        {
+            bodyFluffRenderer.sprite = bodyFluffSprites[spriteIndex];
+            SetFluffColor(bodyFluffRenderer);
+        }
+
+        Debug.Log($"Applied fluff: fluffiness={fluffiness:F2}, size={currentSize:F2}");
     }
 
-    Debug.Log($"Applied sheep fluff: level={currentFluffLevel:F2}, head={headFluffSize:F2}, body={bodyFluffSize}");
-}
+    private void SetFluffColor(SpriteRenderer renderer)
+    {
+        // Check if AgentVisualController is managing colors
+        AgentVisualController visualController = GetComponent<AgentVisualController>();
+        if (visualController != null && visualController.controlFluffColors)
+        {
+            return; // Let AgentVisualController handle colors
+        }
+
+        // Set our own color
+        Color color = fluffColor;
+        if (geneticsSystem != null)
+        {
+            color = Color.Lerp(fluffColor, geneticsSystem.BaseColor, 0.1f);
+        }
+        color.a = 1f;
+        renderer.color = color;
+    }
+
     private void UpdateDebugInfo()
     {
         hasGenetics = geneticsSystem != null;
@@ -494,13 +390,13 @@ private void ApplyFluffSprites()
     }
 
     // ========================================================================
-    // PUBLIC METHODS
+    // PUBLIC METHODS (Keep same interface for compatibility)
     // ========================================================================
 
     [ContextMenu("Regenerate Sheep Fluff")]
     public void RegenerateFluff()
     {
-        CreateSheepFluffSprites();
+        CreateFluffSprites();
         UpdateFluffiness();
     }
 
@@ -524,69 +420,51 @@ private void ApplyFluffSprites()
         UpdateFluffiness();
     }
 
-    public float GetCurrentFluffLevel() => currentFluffLevel;
+    public float GetCurrentFluffLevel() => fluffiness; // Return the main fluffiness parameter
 
     void OnDestroy()
     {
         // Clean up textures
-        if (headFluffSprites != null)
-        {
-            foreach (var sprite in headFluffSprites)
-            {
-                if (sprite != null && sprite.texture != null)
-                    DestroyImmediate(sprite.texture);
-            }
-        }
+        CleanupSprites(headFluffSprites);
+        CleanupSprites(bodyFluffSprites);
+    }
 
-        if (bodyFluffSprites != null)
+    private void CleanupSprites(Sprite[] sprites)
+    {
+        if (sprites == null) return;
+
+        foreach (var sprite in sprites)
         {
-            foreach (var sprite in bodyFluffSprites)
-            {
-                if (sprite != null && sprite.texture != null)
-                    DestroyImmediate(sprite.texture);
-            }
+            if (sprite != null && sprite.texture != null)
+                DestroyImmediate(sprite.texture);
         }
     }
 }
 
 /*
 ========================================================================
-?? SHEEP-LIKE GENETIC FLUFF SYSTEM
+?? SIMPLIFIED SHEEP-LIKE GENETIC FLUFF SYSTEM
 
-STRUCTURE:
-? HEAD FLUFF - Circular cloud above the agent (ON TOP sorting order)
-? BODY FLUFF - Elliptical cloud around the agent body (ON TOP of head)
-? FULL OPACITY - No alpha blending, solid cloud colors
-? GENETICS - "FluffLevel" trait controls size of both clouds
-? AGE EFFECTS - Babies have less fluff, adults have full fluff
+SINGLE FLUFFINESS PARAMETER (0.0 to 1.0):
+?? SHAPE MORPHING:
+   • 0.0: Slim, very elliptical shapes
+   • 1.0: More circular/rounded shapes (especially body)
 
-LAYERING (front to back):
-1. Body Fluff (topmost layer)
-2. Head Fluff (middle layer)  
-3. Agent Sprite (bottom layer)
+?? FLUFFY EDGES:
+   • Sine-based curvature around the periphery
+   • Curvature depth increases with fluffiness
+   • Random variation for natural fluffy look
+   • More curves = more fluffy appearance
 
-HOW TO USE:
-1. Add SheepLikeGeneticFluff component to your agent prefab
-2. Adjust settings in inspector
-3. Fluff will automatically appear behind your agent sprite
+?? GENETICS: "FluffLevel" trait controls everything
+?? AGE EFFECTS: Babies less fluffy, adults full fluffy
+?? COLORS: Coordinates with AgentVisualController
 
-SETTINGS TO PLAY WITH:
-- Base Fluff Level: Starting fluffiness
-- Fluff Color: Color of the clouds (no alpha!)
-- Head/Body Fluff Offsets: Position relative to agent
-- Head/Body Fluff Sizes: Min and max sizes
-- Cloud settings: Noise scale, layers, softness
+VISUAL PROGRESSION:
+0.0 ? Slim elliptical shapes with smooth edges
+0.5 ? Medium rounded shapes with some fluffiness  
+1.0 ? Rounder shapes with deep fluffy sine curves
 
-GENETICS:
-- "FluffLevel" trait (0.0 to 1.0)
-- 0.0 = No fluff (just the agent sprite)
-- 1.0 = Maximum fluffy sheep-like appearance
-- Inherited from parents with mutations
-
-VISUAL RESULT:
-Your agents will look like fluffy sheep with varying amounts of 
-head and body fluff based on their genetics! ???
-
-No more alpha issues - solid, visible fluff clouds!
+RESULT: Sheep that look progressively fluffier and rounder! ???
 ========================================================================
 */

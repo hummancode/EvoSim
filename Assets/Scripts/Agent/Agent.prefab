@@ -144,18 +144,23 @@ MonoBehaviour:
   autoAddGeneticTrait: 0
   useAgeEffects: 0
   babyFluffMultiplier: 1
+  childFluffMultiplier: 0.6
   adultFluffMultiplier: 4
   elderlyFluffMultiplier: 0.8
-  headFluffOffset: {x: 0, y: 0.8}
-  headFluffBaseSize: 3
-  headFluffMaxSize: 4
+  headFluffOffset: {x: 0, y: 0.5}
   bodyFluffOffset: {x: 0, y: -0.3}
-  bodyFluffBaseSize: {x: 2, y: 1.7}
-  bodyFluffMaxSize: {x: 1.8, y: 1.2}
-  minCircles: 32
-  maxCircles: 45
-  minCircleSize: 0.5
-  maxCircleSize: 1
+  baseSize: 0.8
+  maxSize: 1.5
+  curvaturePoints: 46
+  maxCurvatureDepth: 2
+  curveFrequency: 5
+  randomness: 0.5
+  fluffiness: 1
+  currentFluffLevel: 0
+  currentSize: 0
+  hasGenetics: 0
+  geneticValue: 0
+  currentLifeStage: 
 --- !u!114 &2111357426723381741
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -743,7 +743,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   agentPrefab: {fileID: 1152286915341841996, guid: e545d852016087949bcfbf5dd019c321, type: 3}
   backupAgentPrefab: {fileID: 0}
-  initialAgentCount: 1
+  initialAgentCount: 4
   worldBounds: {x: 27, y: 19.5}
   lifespanConfig: {fileID: 11400000, guid: 26197f047a7afbb45af05bb20e125dff, type: 2}
   totalAgentsBorn: 0
@@ -3530,8 +3530,16 @@ PrefabInstance:
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 3785587228444981674, guid: e545d852016087949bcfbf5dd019c321, type: 3}
+      propertyPath: m_Enabled
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 3785587228444981674, guid: e545d852016087949bcfbf5dd019c321, type: 3}
       propertyPath: bodySize.y
       value: 1.1
+      objectReference: {fileID: 0}
+    - target: {fileID: 3785587228444981674, guid: e545d852016087949bcfbf5dd019c321, type: 3}
+      propertyPath: fluffiness
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 3785587228444981674, guid: e545d852016087949bcfbf5dd019c321, type: 3}
       propertyPath: layerCount
@@ -3574,12 +3582,24 @@ PrefabInstance:
       value: 0.1
       objectReference: {fileID: 0}
     - target: {fileID: 3785587228444981674, guid: e545d852016087949bcfbf5dd019c321, type: 3}
+      propertyPath: baseFluffLevel
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 3785587228444981674, guid: e545d852016087949bcfbf5dd019c321, type: 3}
       propertyPath: circlediameter
       value: 0.25
       objectReference: {fileID: 0}
     - target: {fileID: 3785587228444981674, guid: e545d852016087949bcfbf5dd019c321, type: 3}
+      propertyPath: curveFrequency
+      value: 10
+      objectReference: {fileID: 0}
+    - target: {fileID: 3785587228444981674, guid: e545d852016087949bcfbf5dd019c321, type: 3}
       propertyPath: cloudNoiseScale
       value: 0.23
+      objectReference: {fileID: 0}
+    - target: {fileID: 3785587228444981674, guid: e545d852016087949bcfbf5dd019c321, type: 3}
+      propertyPath: curvaturePoints
+      value: 26
       objectReference: {fileID: 0}
     - target: {fileID: 3785587228444981674, guid: e545d852016087949bcfbf5dd019c321, type: 3}
       propertyPath: bodyFluffDensity
@@ -3608,6 +3628,10 @@ PrefabInstance:
     - target: {fileID: 3785587228444981674, guid: e545d852016087949bcfbf5dd019c321, type: 3}
       propertyPath: headFluffOffset.y
       value: 0.9
+      objectReference: {fileID: 0}
+    - target: {fileID: 3785587228444981674, guid: e545d852016087949bcfbf5dd019c321, type: 3}
+      propertyPath: maxCurvatureDepth
+      value: 2
       objectReference: {fileID: 0}
     - target: {fileID: 3785587228444981674, guid: e545d852016087949bcfbf5dd019c321, type: 3}
       propertyPath: bodyFluffMaxSize.x
