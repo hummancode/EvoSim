@@ -14,6 +14,7 @@ GameObject:
   - component: {fileID: 1152286915341842033}
   - component: {fileID: 3785587228444981674}
   - component: {fileID: 2111357426723381741}
+  - component: {fileID: -2336691407520758992}
   m_Layer: 8
   m_Name: Agent
   m_TagString: Untagged
@@ -199,9 +200,38 @@ MonoBehaviour:
   matingFluffColor: {r: 1, g: 0.5, b: 0.8, a: 1}
   hungryFluffColor: {r: 0.9811321, g: 0.3687818, b: 0.2082592, a: 1}
   lowEnergyFluffColor: {r: 1, g: 0, b: 0, a: 1}
-  matingPulseSpeed: 2
+  useScaleController: 1
+  debugScaling: 0
+  matingPulseSpeed: 8
   hungryFlashSpeed: 1.5
   deathFlashDuration: 1
   deathFlashCount: 3
   geneticColorInfluence: 0.2
   fluffGeneticInfluence: 0.15
+--- !u!114 &-2336691407520758992
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1152286915341841996}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 424155c0b0a170f428ef1dfa5ed77edc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  enableScaling: 1
+  smoothScaling: 1
+  scalingSpeed: 5
+  babyScale: 0.6
+  childScale: 0.8
+  adultScale: 1
+  elderlyScale: 0.9
+  scaleFluffToo: 1
+  fluffScaleMultiplier: 1
+  debugMode: 1
+  baseScale: {x: 1, y: 1, z: 1}
+  currentTargetScale: {x: 1, y: 1, z: 1}
+  actualScale: {x: 1, y: 1, z: 1}
+  currentLifeStage: Unknown
+  isScaling: 0

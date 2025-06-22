@@ -32,6 +32,7 @@ public class AgentController : MonoBehaviour
     private AgentIdentity identity;
     private GeneticsSystem geneticsSystem;
     private AgeSystem ageSystem;
+    private AgeLifeStageTracker ageLifeStageTracker;
     [Header("Central Management")]
     [SerializeField] private bool isCentrallyManaged = false;
     [SerializeField] private bool enableCentralManagement = true; // Toggle for testing
@@ -75,6 +76,7 @@ public class AgentController : MonoBehaviour
         if (ageSystem == null)
         {
             ageSystem = gameObject.AddComponent<AgeSystem>();
+            ageLifeStageTracker = gameObject.AddComponent<AgeLifeStageTracker>();
         }
 
         // Create managers (existing code)

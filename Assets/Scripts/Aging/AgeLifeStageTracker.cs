@@ -11,9 +11,9 @@ public class AgeLifeStageTracker : MonoBehaviour
     public enum LifeStage { Baby, Child, Adult, Elderly }
 
     [Header("Life Stage Settings")]
-    [SerializeField] private float childAge = 6f;
-    [SerializeField] private float adultAge = 20f;
-    [SerializeField] private float elderlyAge = 60f;
+    [SerializeField] private float childAge = 5f;
+    [SerializeField] private float adultAge = 30f;
+    [SerializeField] private float elderlyAge = 90f;
 
     [Header("References")]
     [SerializeField] private AgeSystem ageSystem;

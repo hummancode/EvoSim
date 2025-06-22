@@ -1,13 +1,13 @@
 ﻿// ============================================================================
-// FILE: IntegratedAgentVisualController.cs
-// PURPOSE: Complete visual management including main sprite AND fluff colors
+// FILE: AgentVisualController.cs - INTEGRATED WITH SPRITE SCALE CONTROLLER
+// PURPOSE: Visual management that delegates scaling to SpriteScaleController
 // ============================================================================
 
 using UnityEngine;
 using System.Collections;
 
 /// <summary>
-/// Enhanced visual controller that manages all agent visuals including fluff
+/// Enhanced visual controller that delegates scaling to SpriteScaleController
 /// </summary>
 public class AgentVisualController : MonoBehaviour
 {
@@ -38,14 +38,18 @@ public class AgentVisualController : MonoBehaviour
 
     [Header("🐑 FLUFF COLOR CONTROL")]
     [SerializeField] public bool controlFluffColors = true;
-    [SerializeField] private Color normalFluffColor = Color.white;                        // Same as normalColor
-    [SerializeField] private Color babyFluffColor = new Color(0.7f, 0.9f, 1f, 1f);      // Same as babyColor
-    [SerializeField] private Color childFluffColor = new Color(0.8f, 1f, 0.8f, 1f);     // Same as childColor
-    [SerializeField] private Color adultFluffColor = Color.white;                        // Same as adultColor
-    [SerializeField] private Color elderlyFluffColor = new Color(0.9f, 0.9f, 0.7f, 1f); // Same as elderlyColor
-    [SerializeField] private Color matingFluffColor = new Color(1f, 0.5f, 0.8f, 1f);    // Same as matingColor
-    [SerializeField] private Color hungryFluffColor = new Color(1f, 0.8f, 0.3f, 1f);    // Same as hungryColor
+    [SerializeField] private Color normalFluffColor = Color.white;
+    [SerializeField] private Color babyFluffColor = new Color(0.7f, 0.9f, 1f, 1f);
+    [SerializeField] private Color childFluffColor = new Color(0.8f, 1f, 0.8f, 1f);
+    [SerializeField] private Color adultFluffColor = Color.white;
+    [SerializeField] private Color elderlyFluffColor = new Color(0.9f, 0.9f, 0.7f, 1f);
+    [SerializeField] private Color matingFluffColor = new Color(1f, 0.5f, 0.8f, 1f);
+    [SerializeField] private Color hungryFluffColor = new Color(1f, 0.8f, 0.3f, 1f);
     [SerializeField] private Color lowEnergyFluffColor = Color.red;
+
+    [Header("📏 SCALING CONTROL")]
+    [SerializeField] private bool useScaleController = true; // Enable/disable scale controller integration
+    [SerializeField] private bool debugScaling = false;
 
     [Header("Effect Settings")]
     [SerializeField] private float matingPulseSpeed = 2f;
@@ -53,7 +57,7 @@ public class AgentVisualController : MonoBehaviour
     [SerializeField] private float deathFlashDuration = 1f;
     [SerializeField] private int deathFlashCount = 3;
     [SerializeField] private float geneticColorInfluence = 0.2f;
-    [SerializeField] private float fluffGeneticInfluence = 0.15f; // Fluff gets less genetic influence
+    [SerializeField] private float fluffGeneticInfluence = 0.15f;
 
     // Component references
     private AgeSystem ageSystem;
@@ -61,9 +65,10 @@ public class AgentVisualController : MonoBehaviour
     private EnergySystem energySystem;
     private ReproductionSystem reproductionSystem;
     private GeneticsSystem geneticsSystem;
-    private SheepLikeGeneticFluff fluffSystem; // Reference to fluff system
+    private SheepLikeGeneticFluff fluffSystem;
+    private SpriteScaleController scaleController; // NEW: Scale controller reference
 
-    // Fluff renderer references (found automatically)
+    // Fluff renderer references
     private SpriteRenderer headFluffRenderer;
     private SpriteRenderer bodyFluffRenderer;
 
@@ -73,31 +78,44 @@ public class AgentVisualController : MonoBehaviour
     private bool isHungry = false;
     private Coroutine currentEffectCoroutine;
 
-    // Original values for restoration
+    // Original values
     private Sprite originalSprite;
     private Color originalColor;
     private Color originalFluffColor;
 
-
     void Awake()
     {
-        // ENSURE fluff system is initialized FIRST
-        SheepLikeGeneticFluff fluffSystem = GetComponent<SheepLikeGeneticFluff>();
+        SetupComponents();
+        SetupSpriteRenderers();
+
+        // NEW: Setup scale controller
+        SetupScaleController();
+
+        // Force fluff system setup first
         if (fluffSystem != null)
         {
-            // Force the fluff system to setup components if it hasn't already
             fluffSystem.SendMessage("SetupComponents", SendMessageOptions.DontRequireReceiver);
         }
 
-        SetupComponents();
-        SetupSpriteRenderers();
-        FindFluffRenderers(); // This should now find the fluff renderers
+        FindFluffRenderers();
         CacheOriginalValues();
     }
 
     void Start()
     {
         SubscribeToEvents();
+
+        // NEW: Force initial scale update via scale controller
+        if (useScaleController && scaleController != null)
+        {
+            scaleController.ForceUpdateScale();
+
+            if (debugScaling)
+            {
+                Debug.Log($"[AgentVisualController] {gameObject.name} - Scale controller force update triggered");
+            }
+        }
+
         UpdateVisuals();
     }
 
@@ -106,6 +124,30 @@ public class AgentVisualController : MonoBehaviour
         if (!isDead)
         {
             UpdateVisuals();
+        }
+    }
+
+    /// <summary>
+    /// NEW: Setup scale controller
+    /// </summary>
+    private void SetupScaleController()
+    {
+        scaleController = GetComponent<SpriteScaleController>();
+
+        if (useScaleController && scaleController == null)
+        {
+            // Auto-add scale controller if it doesn't exist
+            scaleController = gameObject.AddComponent<SpriteScaleController>();
+
+            if (debugScaling)
+            {
+                Debug.Log($"[AgentVisualController] {gameObject.name} - Auto-added SpriteScaleController");
+            }
+        }
+
+        if (debugScaling)
+        {
+            Debug.Log($"[AgentVisualController] {gameObject.name} - Scale controller setup: {scaleController != null}");
         }
     }
 
@@ -138,16 +180,31 @@ public class AgentVisualController : MonoBehaviour
             effectObj.transform.localScale = Vector3.one;
 
             effectSpriteRenderer = effectObj.AddComponent<SpriteRenderer>();
-            effectSpriteRenderer.sortingOrder = mainSpriteRenderer.sortingOrder + 10; // Above everything
+            effectSpriteRenderer.sortingOrder = mainSpriteRenderer.sortingOrder + 10;
         }
 
         if (babySprite == null) CreateDefaultSprites();
     }
 
-    /// <summary>
-    /// Find fluff renderers automatically
-    /// </summary>
+    private void FindFluffRenderers()
+    {
+        Transform headFluff = transform.Find("HeadFluff");
+        if (headFluff != null)
+        {
+            headFluffRenderer = headFluff.GetComponent<SpriteRenderer>();
+        }
 
+        Transform bodyFluff = transform.Find("BodyFluff");
+        if (bodyFluff != null)
+        {
+            bodyFluffRenderer = bodyFluff.GetComponent<SpriteRenderer>();
+        }
+
+        if (debugScaling)
+        {
+            Debug.Log($"[AgentVisualController] Found head fluff: {headFluffRenderer != null}, body fluff: {bodyFluffRenderer != null}");
+        }
+    }
 
     private void CacheOriginalValues()
     {
@@ -176,7 +233,7 @@ public class AgentVisualController : MonoBehaviour
     }
 
     /// <summary>
-    /// Main visual update method - now includes fluff colors
+    /// Main visual update method - NO MORE SCALING HERE!
     /// </summary>
     private void UpdateVisuals()
     {
@@ -184,22 +241,27 @@ public class AgentVisualController : MonoBehaviour
         UpdateEnergyVisuals();
         UpdateGeneticVisuals();
 
-        // NEW: Update fluff colors
         if (controlFluffColors)
         {
             UpdateFluffColors();
         }
     }
 
+    /// <summary>
+    /// SIMPLIFIED: Age visual updates WITHOUT scaling (scaling is handled by SpriteScaleController)
+    /// </summary>
     private void UpdateAgeVisuals()
     {
-        if (lifeStageTracker == null || ageSystem == null) return;
+        if (lifeStageTracker == null) return;
 
         // Update sprite based on life stage
-        Sprite targetSprite = GetSpriteForLifeStage(lifeStageTracker.CurrentStage);
-        if (targetSprite != null && !isMating && !isDead)
+        if (!isMating && !isDead)
         {
-            mainSpriteRenderer.sprite = targetSprite;
+            Sprite targetSprite = GetSpriteForLifeStage(lifeStageTracker.CurrentStage);
+            if (targetSprite != null)
+            {
+                mainSpriteRenderer.sprite = targetSprite;
+            }
         }
 
         // Update color based on age (if not overridden by other states)
@@ -209,9 +271,7 @@ public class AgentVisualController : MonoBehaviour
             mainSpriteRenderer.color = targetColor;
         }
 
-        // Update scale based on age
-        float scaleMultiplier = GetScaleForLifeStage(lifeStageTracker.CurrentStage);
-        transform.localScale = Vector3.one * scaleMultiplier;
+        // REMOVED: No more scaling code here! SpriteScaleController handles it automatically
     }
 
     private void UpdateEnergyVisuals()
@@ -221,7 +281,6 @@ public class AgentVisualController : MonoBehaviour
         bool wasHungry = isHungry;
         isHungry = energySystem.IsHungry;
 
-        // Start/stop hungry effect
         if (isHungry && !wasHungry && !isMating && !isDead)
         {
             StartHungryEffect();
@@ -231,7 +290,6 @@ public class AgentVisualController : MonoBehaviour
             StopHungryEffect();
         }
 
-        // Very low energy warning
         if (energySystem.EnergyPercent < 0.2f && !isMating && !isDead)
         {
             Color lowEnergyTint = Color.Lerp(mainSpriteRenderer.color, lowEnergyColor, 0.3f);
@@ -243,146 +301,45 @@ public class AgentVisualController : MonoBehaviour
     {
         if (geneticsSystem == null || isMating || isDead) return;
 
-        // Blend genetic color traits with current color
         Color geneticColor = geneticsSystem.BaseColor;
         Color currentColor = mainSpriteRenderer.color;
-
-        // Genetic influence on main sprite
         Color blendedColor = Color.Lerp(currentColor, geneticColor, geneticColorInfluence);
         mainSpriteRenderer.color = blendedColor;
     }
 
-    /// <summary>
-    /// NEW: Update fluff colors based on current state
-    /// </summary>
-    /// <summary>
-    /// Find fluff renderers automatically - with NULL safety
-    /// </summary>
-    private void FindFluffRenderers()
-    {
-        // DEBUG: List all child objects
-        Debug.Log($"Agent {gameObject.name} has {transform.childCount} children:");
-        for (int i = 0; i < transform.childCount; i++)
-        {
-            Debug.Log($"  Child {i}: {transform.GetChild(i).name}");
-        }
-
-        // Find head fluff renderer
-        Transform headFluff = transform.Find("HeadFluff");
-        if (headFluff != null)
-        {
-            headFluffRenderer = headFluff.GetComponent<SpriteRenderer>();
-        }
-
-        // Find body fluff renderer
-        Transform bodyFluff = transform.Find("BodyFluff");
-        if (bodyFluff != null)
-        {
-            bodyFluffRenderer = bodyFluff.GetComponent<SpriteRenderer>();
-        }
-
-        Debug.Log($"Visual Controller: Found head fluff: {headFluffRenderer != null}, body fluff: {bodyFluffRenderer != null}");
-    }
-
-    /// <summary>
-    /// NEW: Ensure fluff renderers are found before using them
-    /// </summary>
-    private void EnsureFluffRenderersFound()
-    {
-        // If renderers are null, try to find them again
-        if (headFluffRenderer == null || bodyFluffRenderer == null)
-        {
-            Debug.Log("Fluff renderers are NULL - re-finding them...");
-            FindFluffRenderers();
-        }
-    }
-
-    /// <summary>
-    /// NEW: Update fluff colors based on current state - with NULL safety
-    /// </summary>
     private void UpdateFluffColors()
     {
-        Debug.Log($"🔹 UpdateFluffColors START for {gameObject.name}");
-
-        if (!controlFluffColors)
-        {
-            Debug.Log("❌ Fluff color control is DISABLED");
-            return;
-        }
-        Debug.Log("✅ Fluff color control is ENABLED");
-
-        // ENSURE renderers are found
-        EnsureFluffRenderersFound();
-
-        Debug.Log($"🔹 After EnsureFluffRenderersFound: head={headFluffRenderer != null}, body={bodyFluffRenderer != null}");
-
-        if (headFluffRenderer == null && bodyFluffRenderer == null)
-        {
-            Debug.LogError("❌ BOTH FLUFF RENDERERS ARE NULL - CANNOT SET COLORS!");
-            return;
-        }
+        if (!controlFluffColors) return;
 
         Color targetFluffColor = GetFluffColorForCurrentState();
-        Debug.Log($"🎨 Target fluff color: {targetFluffColor} (isDead:{isDead}, isMating:{isMating}, isHungry:{isHungry})");
 
-        // Apply to head fluff
+        if (geneticsSystem != null && !isMating && !isDead)
+        {
+            Color geneticColor = geneticsSystem.BaseColor;
+            targetFluffColor = Color.Lerp(targetFluffColor, geneticColor, fluffGeneticInfluence);
+        }
+
         if (headFluffRenderer != null)
         {
-            Color oldColor = headFluffRenderer.color;
             headFluffRenderer.color = targetFluffColor;
-            Debug.Log($"🔴 HEAD FLUFF: {oldColor} -> {headFluffRenderer.color}");
-        }
-        else
-        {
-            Debug.LogError("❌ headFluffRenderer is NULL!");
         }
 
-        // Apply to body fluff
         if (bodyFluffRenderer != null)
         {
             Color bodyColor = targetFluffColor;
             bodyColor.r *= 0.95f;
             bodyColor.g *= 0.95f;
-
-            Color oldBodyColor = bodyFluffRenderer.color;
             bodyFluffRenderer.color = bodyColor;
-            Debug.Log($"🔵 BODY FLUFF: {oldBodyColor} -> {bodyFluffRenderer.color}");
         }
-        else
-        {
-            Debug.LogError("❌ bodyFluffRenderer is NULL!");
-        }
-
-        Debug.Log($"🔹 UpdateFluffColors END for {gameObject.name}");
     }
-    /// <summary>
-    /// Get fluff color based on current agent state
-    /// </summary>
+
     private Color GetFluffColorForCurrentState()
     {
-        // Priority: death > mating > hungry > low energy > age-based > normal
+        if (isDead) return Color.gray;
+        if (isMating) return matingFluffColor;
+        if (isHungry) return hungryFluffColor;
+        if (energySystem != null && energySystem.EnergyPercent < 0.2f) return lowEnergyFluffColor;
 
-        if (isDead)
-        {
-            return Color.gray; // Dead fluff is gray
-        }
-
-        if (isMating)
-        {
-            return matingFluffColor;
-        }
-
-        if (isHungry)
-        {
-            return hungryFluffColor;
-        }
-
-        if (energySystem != null && energySystem.EnergyPercent < 0.2f)
-        {
-            return lowEnergyFluffColor;
-        }
-
-        // Age-based fluff color
         if (lifeStageTracker != null)
         {
             return GetFluffColorForLifeStage(lifeStageTracker.CurrentStage);
@@ -391,33 +348,32 @@ public class AgentVisualController : MonoBehaviour
         return normalFluffColor;
     }
 
-    /// <summary>
-    /// Get fluff color for specific life stage
-    /// </summary>
     private Color GetFluffColorForLifeStage(AgeLifeStageTracker.LifeStage stage)
     {
         switch (stage)
         {
-            case AgeLifeStageTracker.LifeStage.Baby:
-                return babyFluffColor;
-            case AgeLifeStageTracker.LifeStage.Child:
-                return childFluffColor;
-            case AgeLifeStageTracker.LifeStage.Adult:
-                return adultFluffColor;
-            case AgeLifeStageTracker.LifeStage.Elderly:
-                return elderlyFluffColor;
-            default:
-                return normalFluffColor;
+            case AgeLifeStageTracker.LifeStage.Baby: return babyFluffColor;
+            case AgeLifeStageTracker.LifeStage.Child: return childFluffColor;
+            case AgeLifeStageTracker.LifeStage.Adult: return adultFluffColor;
+            case AgeLifeStageTracker.LifeStage.Elderly: return elderlyFluffColor;
+            default: return normalFluffColor;
         }
     }
 
     // ========================================================================
-    // EVENT HANDLERS
+    // EVENT HANDLERS - UPDATED TO USE SCALE CONTROLLER
     // ========================================================================
 
     private void OnLifeStageChanged(AgeLifeStageTracker.LifeStage newStage)
     {
-        Debug.Log($"{gameObject.name} entered {newStage} stage - updating visuals and fluff");
+        if (debugScaling)
+        {
+            Debug.Log($"[AgentVisualController] {gameObject.name} LifeStage changed to: {newStage}");
+        }
+
+        // NEW: Delegate scaling to SpriteScaleController (it will handle this automatically)
+        // No need to call anything - SpriteScaleController subscribes to the same event!
+
         UpdateVisuals();
     }
 
@@ -437,7 +393,7 @@ public class AgentVisualController : MonoBehaviour
     }
 
     // ========================================================================
-    // VISUAL EFFECTS (Enhanced with fluff support)
+    // VISUAL EFFECTS (unchanged)
     // ========================================================================
 
     private void StartMatingEffect()
@@ -488,10 +444,6 @@ public class AgentVisualController : MonoBehaviour
         }
     }
 
-    // ========================================================================
-    // ENHANCED EFFECT COROUTINES (with fluff color changes)
-    // ========================================================================
-
     private IEnumerator MatingEffectCoroutine()
     {
         if (matingSprite != null)
@@ -499,16 +451,13 @@ public class AgentVisualController : MonoBehaviour
             mainSpriteRenderer.sprite = matingSprite;
         }
 
-        // Pulsing effect on both sprite and fluff
         while (isMating)
         {
             float pulse = (Mathf.Sin(Time.time * matingPulseSpeed) + 1f) * 0.5f;
 
-            // Pulse main sprite
             Color pulseColor = Color.Lerp(normalColor, matingColor, pulse * 0.7f);
             mainSpriteRenderer.color = pulseColor;
 
-            // Pulse fluff colors
             if (controlFluffColors)
             {
                 Color fluffPulseColor = Color.Lerp(normalFluffColor, matingFluffColor, pulse * 0.5f);
@@ -532,16 +481,13 @@ public class AgentVisualController : MonoBehaviour
             mainSpriteRenderer.sprite = hungrySprite;
         }
 
-        // Flashing effect on both sprite and fluff
         while (isHungry && !isMating && !isDead)
         {
             float flash = (Mathf.Sin(Time.time * hungryFlashSpeed) + 1f) * 0.5f;
 
-            // Flash main sprite
             Color flashColor = Color.Lerp(normalColor, hungryColor, flash * 0.5f);
             mainSpriteRenderer.color = flashColor;
 
-            // Flash fluff colors
             if (controlFluffColors)
             {
                 Color fluffFlashColor = Color.Lerp(normalFluffColor, hungryFluffColor, flash * 0.3f);
@@ -569,10 +515,8 @@ public class AgentVisualController : MonoBehaviour
             mainSpriteRenderer.sprite = deathSprite;
         }
 
-        // Flash effect
         for (int i = 0; i < deathFlashCount; i++)
         {
-            // Flash white
             mainSpriteRenderer.color = Color.white;
             if (controlFluffColors)
             {
@@ -581,7 +525,6 @@ public class AgentVisualController : MonoBehaviour
             }
             yield return new WaitForSeconds(deathFlashDuration / (deathFlashCount * 2));
 
-            // Flash red
             mainSpriteRenderer.color = Color.red;
             if (controlFluffColors)
             {
@@ -591,7 +534,6 @@ public class AgentVisualController : MonoBehaviour
             yield return new WaitForSeconds(deathFlashDuration / (deathFlashCount * 2));
         }
 
-        // Fade out
         float fadeTime = 0.5f;
         Color startColor = mainSpriteRenderer.color;
         Color startFluffColor = controlFluffColors && headFluffRenderer != null ? headFluffRenderer.color : Color.white;
@@ -600,12 +542,10 @@ public class AgentVisualController : MonoBehaviour
         {
             float alpha = Mathf.Lerp(1f, 0f, t / fadeTime);
 
-            // Fade main sprite
             Color fadeColor = startColor;
             fadeColor.a = alpha;
             mainSpriteRenderer.color = fadeColor;
 
-            // Fade fluff
             if (controlFluffColors)
             {
                 Color fluffFadeColor = startFluffColor;
@@ -620,23 +560,18 @@ public class AgentVisualController : MonoBehaviour
     }
 
     // ========================================================================
-    // EXISTING HELPER METHODS (unchanged)
+    // HELPER METHODS (unchanged)
     // ========================================================================
 
     private Sprite GetSpriteForLifeStage(AgeLifeStageTracker.LifeStage stage)
     {
         switch (stage)
         {
-            case AgeLifeStageTracker.LifeStage.Baby:
-                return babySprite ?? originalSprite;
-            case AgeLifeStageTracker.LifeStage.Child:
-                return childSprite ?? originalSprite;
-            case AgeLifeStageTracker.LifeStage.Adult:
-                return adultSprite ?? originalSprite;
-            case AgeLifeStageTracker.LifeStage.Elderly:
-                return elderlySprite ?? originalSprite;
-            default:
-                return originalSprite;
+            case AgeLifeStageTracker.LifeStage.Baby: return babySprite ?? originalSprite;
+            case AgeLifeStageTracker.LifeStage.Child: return childSprite ?? originalSprite;
+            case AgeLifeStageTracker.LifeStage.Adult: return adultSprite ?? originalSprite;
+            case AgeLifeStageTracker.LifeStage.Elderly: return elderlySprite ?? originalSprite;
+            default: return originalSprite;
         }
     }
 
@@ -644,33 +579,11 @@ public class AgentVisualController : MonoBehaviour
     {
         switch (stage)
         {
-            case AgeLifeStageTracker.LifeStage.Baby:
-                return babyColor;
-            case AgeLifeStageTracker.LifeStage.Child:
-                return childColor;
-            case AgeLifeStageTracker.LifeStage.Adult:
-                return adultColor;
-            case AgeLifeStageTracker.LifeStage.Elderly:
-                return elderlyColor;
-            default:
-                return normalColor;
-        }
-    }
-
-    private float GetScaleForLifeStage(AgeLifeStageTracker.LifeStage stage)
-    {
-        switch (stage)
-        {
-            case AgeLifeStageTracker.LifeStage.Baby:
-                return 0.5f;
-            case AgeLifeStageTracker.LifeStage.Child:
-                return 0.75f;
-            case AgeLifeStageTracker.LifeStage.Adult:
-                return 1f;
-            case AgeLifeStageTracker.LifeStage.Elderly:
-                return 0.9f;
-            default:
-                return 1f;
+            case AgeLifeStageTracker.LifeStage.Baby: return babyColor;
+            case AgeLifeStageTracker.LifeStage.Child: return childColor;
+            case AgeLifeStageTracker.LifeStage.Adult: return adultColor;
+            case AgeLifeStageTracker.LifeStage.Elderly: return elderlyColor;
+            default: return normalColor;
         }
     }
 
@@ -684,10 +597,6 @@ public class AgentVisualController : MonoBehaviour
         hungrySprite = CreateCircleSprite(24, Color.white);
         deathSprite = CreateXSprite(24);
     }
-
-    // ========================================================================
-    // PROCEDURAL SPRITE CREATION (unchanged)
-    // ========================================================================
 
     private Sprite CreateCircleSprite(int size, Color color)
     {
@@ -753,19 +662,56 @@ public class AgentVisualController : MonoBehaviour
     }
 
     // ========================================================================
-    // PUBLIC INTERFACE (enhanced)
+    // PUBLIC INTERFACE & SCALE CONTROLLER INTEGRATION
     // ========================================================================
 
-    public void SetCustomMatingColor(Color spriteColor, Color fluffColor)
+    /// <summary>
+    /// NEW: Force scale update via scale controller
+    /// </summary>
+    [ContextMenu("🔧 Force Scale Update")]
+    public void ForceScaleUpdate()
     {
-        matingColor = spriteColor;
-        matingFluffColor = fluffColor;
+        if (useScaleController && scaleController != null)
+        {
+            scaleController.ForceUpdateScale();
+            Debug.Log($"[AgentVisualController] {gameObject.name} - Forced scale update via SpriteScaleController");
+        }
+        else
+        {
+            Debug.LogWarning($"[AgentVisualController] {gameObject.name} - Scale controller not available or disabled");
+        }
     }
 
-    public void SetCustomHungryColor(Color spriteColor, Color fluffColor)
+    /// <summary>
+    /// NEW: Test scale controller integration
+    /// </summary>
+    [ContextMenu("🧪 Test Scale Controller")]
+    public void TestScaleController()
     {
-        hungryColor = spriteColor;
-        hungryFluffColor = fluffColor;
+        if (scaleController != null)
+        {
+            Debug.Log($"[AgentVisualController] Testing scale controller on {gameObject.name}");
+            scaleController.TestAllScales();
+        }
+        else
+        {
+            Debug.LogError($"[AgentVisualController] {gameObject.name} - No SpriteScaleController found!");
+        }
+    }
+
+    /// <summary>
+    /// NEW: Toggle scale controller usage
+    /// </summary>
+    [ContextMenu("🔄 Toggle Scale Controller")]
+    public void ToggleScaleController()
+    {
+        useScaleController = !useScaleController;
+        Debug.Log($"[AgentVisualController] {gameObject.name} - Scale controller usage: {useScaleController}");
+
+        if (useScaleController && scaleController != null)
+        {
+            scaleController.ForceUpdateScale();
+        }
     }
 
     public void ForceUpdateVisuals()
@@ -779,48 +725,15 @@ public class AgentVisualController : MonoBehaviour
     }
 
     /// <summary>
-    /// Toggle fluff color control on/off
+    /// NEW: Get scale controller reference (for external access)
     /// </summary>
-    [ContextMenu("Toggle Fluff Color Control")]
-    public void ToggleFluffColorControl()
+    public SpriteScaleController GetScaleController()
     {
-        controlFluffColors = !controlFluffColors;
-        Debug.Log($"Fluff color control: {controlFluffColors}");
-        if (controlFluffColors) UpdateVisuals();
-    }
-
-    /// <summary>
-    /// Test all visual states
-    /// </summary>
-    [ContextMenu("Test All Visual States")]
-    public void TestAllVisualStates()
-    {
-        StartCoroutine(TestStatesCoroutine());
-    }
-
-    private IEnumerator TestStatesCoroutine()
-    {
-        Debug.Log("Testing normal state");
-        yield return new WaitForSeconds(1f);
-
-        Debug.Log("Testing mating state");
-        StartMatingEffect();
-        yield return new WaitForSeconds(2f);
-        StopMatingEffect();
-
-        Debug.Log("Testing hungry state");
-        isHungry = true;
-        StartHungryEffect();
-        yield return new WaitForSeconds(2f);
-        isHungry = false;
-        StopHungryEffect();
-
-        Debug.Log("Visual state test complete");
+        return scaleController;
     }
 
     void OnDestroy()
     {
-        // Unsubscribe from events
         if (lifeStageTracker != null)
             lifeStageTracker.OnLifeStageChanged -= OnLifeStageChanged;
 
@@ -833,44 +746,42 @@ public class AgentVisualController : MonoBehaviour
         if (energySystem != null)
             energySystem.OnDeath -= OnDeath;
     }
-
 }
 
 /*
 ========================================================================
-🎨 INTEGRATED VISUAL CONTROLLER WITH FLUFF SUPPORT
+🎨 AGENT VISUAL CONTROLLER WITH SPRITE SCALE CONTROLLER INTEGRATION
 
-NEW FEATURES:
-✅ Controls BOTH main sprite AND fluff colors
-✅ Separate color palettes for sprite vs fluff
-✅ Automatic fluff renderer detection
-✅ Age-based fluff color changes
-✅ State-based fluff color changes (mating, hungry, etc.)
-✅ Genetic influence on fluff colors
-✅ Enhanced visual effects that affect fluff too
+✅ KEY CHANGES:
+📏 DELEGATED SCALING: All scaling logic moved to SpriteScaleController
+🔧 AUTO-SETUP: Automatically adds SpriteScaleController if missing
+🎯 CLEAN SEPARATION: Visual effects separate from scaling logic
+🔄 PROPER INTEGRATION: Both controllers subscribe to same life stage events
 
-HOW TO USE:
-1. Replace AgentVisualController with IntegratedAgentVisualController
-2. It automatically finds HeadFluff and BodyFluff renderers
-3. Configure colors in the inspector for both sprite and fluff
-4. Enable "Control Fluff Colors" checkbox
+🆕 NEW FEATURES:
+• useScaleController toggle to enable/disable integration
+• Auto-adds SpriteScaleController component if needed
+• Debug methods to test scale controller
+• GetScaleController() for external access
 
-COLOR COORDINATION:
-🐑 Baby: Light cream fluff
-🐑 Adult: Normal cream fluff  
-🐑 Elderly: Greyish cream fluff
-💗 Mating: Pink-tinted fluff + pulsing effect
-🍎 Hungry: Yellow-tinted fluff + flashing effect
-❤️ Low Energy: Reddish fluff
-🧬 Genetics: Subtle color influence on both sprite and fluff
+🔧 HOW IT WORKS:
+1. AgentVisualController handles colors, sprites, effects
+2. SpriteScaleController handles ALL scaling automatically
+3. Both subscribe to OnLifeStageChanged independently
+4. No conflicts, clean separation of concerns
 
-VISUAL EFFECTS:
-- Mating: Both sprite and fluff pulse pink
-- Hungry: Both sprite and fluff flash yellow/orange
-- Death: Both sprite and fluff flash and fade together
-- Age transitions: Smooth color changes for both
+📊 SETUP STEPS:
+1. Replace your AgentVisualController with this version
+2. It will auto-add SpriteScaleController component
+3. Configure scale values in SpriteScaleController inspector
+4. Enable debugScaling if you want logs
 
-RESULT: Your sheep agents have coordinated sprite and fluff colors 
-that change together based on their state! 🐑✨
+🧪 TESTING:
+• "Force Scale Update" - Test immediate scaling
+• "Test Scale Controller" - Cycle through all life stages
+• "Toggle Scale Controller" - Enable/disable scaling
+
+RESULT: Clean, working age-based scaling with proper separation! 📏✨
+The fluff system stays unchanged, scaling is handled separately! 🐑
 ========================================================================
 */

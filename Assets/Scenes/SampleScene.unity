@@ -609,6 +609,8 @@ MonoBehaviour:
   matingFluffColor: {r: 1, g: 0.8, b: 0.9, a: 1}
   hungryFluffColor: {r: 1, g: 0.9, b: 0.7, a: 1}
   lowEnergyFluffColor: {r: 0.9, g: 0.7, b: 0.7, a: 1}
+  useScaleController: 1
+  debugScaling: 0
   matingPulseSpeed: 2
   hungryFlashSpeed: 1.5
   deathFlashDuration: 1
@@ -3484,6 +3486,10 @@ PrefabInstance:
     - target: {fileID: 1152286915341841996, guid: e545d852016087949bcfbf5dd019c321, type: 3}
       propertyPath: m_Name
       value: Agent
+      objectReference: {fileID: 0}
+    - target: {fileID: 1152286915341841996, guid: e545d852016087949bcfbf5dd019c321, type: 3}
+      propertyPath: m_IsActive
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 1152286915341841999, guid: e545d852016087949bcfbf5dd019c321, type: 3}
       propertyPath: m_RootOrder
